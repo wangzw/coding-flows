@@ -91,4 +91,69 @@ assert_eq "empty PR → wait-review" \
   "wait-review" "$(run_classify "$TMP")"
 rm -f "$TMP"
 
+# Test 14: TIMED_OUT conclusion → address-ci-fail
+TMP="$(mktemp)"
+jq '.statusCheckRollup = [{"name":"e2e","state":"COMPLETED","conclusion":"TIMED_OUT"}]' \
+  "$FIX/no-lgtm.json" > "$TMP"
+assert_eq "TIMED_OUT → address-ci-fail" \
+  "address-ci-fail" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 15: STARTUP_FAILURE → address-ci-fail
+TMP="$(mktemp)"
+jq '.statusCheckRollup = [{"name":"ci","state":"COMPLETED","conclusion":"STARTUP_FAILURE"}]' \
+  "$FIX/no-lgtm.json" > "$TMP"
+assert_eq "STARTUP_FAILURE → address-ci-fail" \
+  "address-ci-fail" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 16: ACTION_REQUIRED → wait-ci (someone has to do something, not us)
+TMP="$(mktemp)"
+jq '.statusCheckRollup = [{"name":"approval","state":"COMPLETED","conclusion":"ACTION_REQUIRED"}]' \
+  "$FIX/no-lgtm.json" > "$TMP"
+assert_eq "ACTION_REQUIRED → wait-ci" \
+  "wait-ci" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 17: SUCCESS + NEUTRAL + SKIPPED all count as green → reaches LGTM step
+TMP="$(mktemp)"
+jq '.statusCheckRollup = [
+  {"name":"lint","state":"SUCCESS"},
+  {"name":"types","state":"COMPLETED","conclusion":"NEUTRAL"},
+  {"name":"docs","state":"COMPLETED","conclusion":"SKIPPED"}
+]' "$FIX/no-lgtm.json" > "$TMP"
+assert_eq "SUCCESS/NEUTRAL/SKIPPED → wait-review (no LGTM)" \
+  "wait-review" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 18: multi-reviewer — one CHANGES_REQUESTED, one COMMENTED → address-changes
+TMP="$(mktemp)"
+jq '. + {
+  reviews: [
+    {"author":{"login":"alice"},"state":"CHANGES_REQUESTED","submittedAt":"2026-05-01T10:00:00Z"},
+    {"author":{"login":"bob"},"state":"COMMENTED","submittedAt":"2026-05-01T11:00:00Z"}
+  ]
+}' "$FIX/no-lgtm.json" > "$TMP"
+assert_eq "multi-reviewer: alice CHANGES_REQUESTED → address-changes" \
+  "address-changes" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 19: multi-reviewer — one CHANGES_REQUESTED (superseded by their /lgtm),
+# one with no review → not address-changes; CI green + no current LGTM →
+# wait-review.
+TMP="$(mktemp)"
+jq '. + {
+  reviews: [
+    {"author":{"login":"alice"},"state":"CHANGES_REQUESTED","submittedAt":"2026-05-01T10:00:00Z"}
+  ],
+  comments: [
+    {"author":{"login":"alice"},"createdAt":"2026-05-01T11:00:00Z","body":"/lgtm\n\n<!-- coding-flows:lgtm sha=other reviewer=alice acs= invariants= risks-reviewed= -->\nresolved"}
+  ]
+}' "$FIX/no-lgtm.json" > "$TMP"
+# alice's /lgtm at SHA "other" supersedes her CHANGES_REQUESTED, but its
+# sha doesn't match head → check_lgtm returns 2 → wait-lgtm-fresh.
+assert_eq "multi-reviewer: superseded CR + stale /lgtm → wait-lgtm-fresh" \
+  "wait-lgtm-fresh" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
 test_summary

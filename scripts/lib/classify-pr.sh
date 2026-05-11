@@ -69,11 +69,12 @@ classify_pr() {
     return 0
   fi
 
-  # 2. CI failed
+  # 2. CI failed. GitHub conclusion enum: FAILURE, ERROR, CANCELLED,
+  # TIMED_OUT, STARTUP_FAILURE — all map to address-ci-fail.
   local ci_fail
   ci_fail="$(jq -r '
     [(.statusCheckRollup // [])[]
-      | select((.conclusion // .state // "") | ascii_upcase | test("FAIL|ERROR|CANCEL"))
+      | select((.conclusion // .state // "") | ascii_upcase | test("FAIL|ERROR|CANCEL|TIMED"))
     ] | length
   ' <<<"$json")"
   if [[ "$ci_fail" -gt 0 ]]; then
@@ -81,11 +82,13 @@ classify_pr() {
     return 0
   fi
 
-  # 3. CI in progress
+  # 3. CI in progress. PENDING, IN_PROGRESS, QUEUED, WAITING, EXPECTED,
+  # ACTION_REQUIRED (someone has to do something — treat as wait, not fail),
+  # STALE (re-run needed — wait for it).
   local ci_pending
   ci_pending="$(jq -r '
     [(.statusCheckRollup // [])[]
-      | select((.conclusion // .state // "") | ascii_upcase | test("PENDING|IN_PROGRESS|QUEUED|WAITING|EXPECTED"))
+      | select((.conclusion // .state // "") | ascii_upcase | test("PENDING|IN_PROGRESS|QUEUED|WAITING|EXPECTED|ACTION_REQUIRED|STALE"))
     ] | length
   ' <<<"$json")"
   if [[ "$ci_pending" -gt 0 ]]; then

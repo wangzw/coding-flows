@@ -64,7 +64,7 @@ main() {
   local failing_checks
   failing_checks="$(jq -r '
     [(.statusCheckRollup // [])[]
-      | select((.conclusion // .state // "") | ascii_upcase | test("FAIL|ERROR|CANCEL"))
+      | select((.conclusion // .state // "") | ascii_upcase | test("FAIL|ERROR|CANCEL|TIMED"))
       | (.name // "(unknown)")
     ] | join(",")
   ' <<<"$PR_VIEW_JSON")"

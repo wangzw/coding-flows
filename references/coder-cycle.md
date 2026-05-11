@@ -43,12 +43,18 @@ gh issue list --assignee <acting_user> --state open \
 ```
 
 For each PR, derive a **state** that determines the Coder's next action.
-**Run `coding-flows-classify-pr <PR>` to get the state — do NOT inspect
-`gh pr view`'s `reviewDecision` or other raw fields.** `/lgtm` is a
-comment marker, not a formal GitHub review, so `reviewDecision` stays
-`""` regardless of how many LGTMs the PR carries. The classify script
-wraps the canonical logic (CHANGES_REQUESTED supersession + CI status
-+ `check_lgtm`) and is the only authoritative source.
+**Run `coding-flows-classify-pr <PR>` to get the state — do NOT classify
+by inspecting raw `gh pr view` fields.** In particular:
+
+- `reviewDecision` is always `""` in our flow — `/lgtm` is a comment
+  marker, not a formal `gh pr review --approve`.
+- `reviews[].state` only captures formal-review actions, not LGTM comments.
+- A `labels` containing `lgtm`-ish strings means nothing — gh-flow uses
+  comment markers, not labels, for approval.
+
+The classify script wraps the canonical logic (CHANGES_REQUESTED
+supersession + CI status + `check_lgtm`) and is the only authoritative
+source.
 
 | State | Condition (PR) | Coder action |
 |-------|----------------|--------------|
