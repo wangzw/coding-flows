@@ -106,6 +106,15 @@ but inform whether to LGTM or request changes):
 5. Performance — N+1, unbounded allocations, blocking I/O.
 6. Style / convention — matches `CLAUDE.md`/`AGENTS.md`, commitlint scopes.
 7. PR hygiene — linked issue present, scope tight, conventional commits.
+8. **Test plan completion** — if the PR body has a `## Test plan` section,
+   every `- [ ]` must be `- [x]` (or removed). Unchecked items mean the
+   Coder claimed manual verification but didn't run it. Gate 11 will block
+   merge if you LGTM with unchecked items present, but catching it during
+   review is cheaper than discovering it at merge time. Quick check:
+
+   ```
+   coding-flows-verify-test-plan <PR>
+   ```
 
 ## Phase D — Publish exactly one of two outcomes
 
