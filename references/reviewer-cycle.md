@@ -45,19 +45,35 @@ gh pr list --assignee <acting_user> --state open \
   --json number,title,author,isDraft,headRefName,headRefOid,labels
 ```
 
-Skip drafts (`isDraft: true`).
+Skip drafts (`isDraft: true`). The list is the **input set**, not the
+state classifier. Do not select fields like `headRefOid` or `updatedAt`
+and decide "unchanged → idle" — that is a banned shortcut.
 
 ## Phase B — Decide what to do per PR
 
-**Do NOT classify by head-SHA-unchanged alone.** A common failure mode:
-the Reviewer concludes "head SHA matches my last LGTM → idle" while
-Gate 4 silently blocks merge because the LGTM marker's
-`acs=`/`invariants=`/`risks-reviewed=` claims don't actually cover what
-the Coder declared. The PR sits skipped forever in cycle summaries.
+For **every PR** in the Phase A list, run:
 
-Run `coding-flows-classify-pr-reviewer <PR>` — it executes the full
-merge gate suite in dry-run mode and maps the result to a Reviewer-side
-action:
+```
+coding-flows-classify-pr-reviewer <PR>
+```
+
+This is mandatory, not optional. Run it even if the PR's head SHA looks
+identical to last cycle. Run it even if you already LGTM'd it. The
+classifier executes the full merge gate suite in dry-run mode and maps
+the result to a Reviewer-side action — Gate 4 (coverage) and Gate 11
+(test plan) can silently fail without any head-SHA change, leaving the
+PR stuck in cycle summaries forever.
+
+Banned alternatives (observed Reviewer failure modes):
+
+- "`gh pr list` returned unchanged `headRefOid` → all PRs idle" — wrong;
+  run the classifier.
+- "`updatedAt` is older than my last cycle → idle" — wrong; run the
+  classifier.
+- "I already LGTM'd this last cycle → idle" — wrong; run the classifier.
+  Coverage / test-plan gates can drift.
+
+The classifier output enum:
 
 | `PR_REVIEWER_STATE` | What to do |
 |--------------------|------------|

@@ -244,14 +244,36 @@ Processed:
   - PR    #M: <one-line action>
 
 Skipped:
-  - PR #K: idle (no new commits since last review)
-  - PR #L: wait-ci (Reviewer will pick up automatically once green)
-  - PR #M: wait-review (waiting for Reviewer cycle)
+  - PR    #K: idle-merge-ready   (Coder owns next step)
+  - PR    #L: wait-ci             (Reviewer will pick up automatically once green)
+  - PR    #M: wait-review         (waiting for Reviewer cycle)
+  - issue #J: wait-author         (clarification question already labelled `needs-human`)
 
 Needs human:
   - issue #J  reason=ambiguous-issue       notified=label+marker
   - PR    #L  reason=repeated-ci-failure   notified=already-labeled
 ```
+
+### Skipped reasons are scoped to item type — do not mix
+
+PR-side `Skipped:` reasons MUST be one of the classifier enum values.
+For Coder cycles, use `coding-flows-classify-pr`; for Reviewer cycles,
+use `coding-flows-classify-pr-reviewer`. The classifier output is the
+ONLY source of state for PR rows — do not classify by head-SHA delta,
+"nothing changed since last cycle", or any other heuristic. Run the
+classifier for **every** PR in the input list, every cycle.
+
+| Item type | Allowed `Skipped:` reasons | Source |
+|-----------|---------------------------|--------|
+| **PR** (Coder cycle) | `wait-ci`, `wait-review`, `wait-lgtm-fresh`, `merge-conflict`, `wip` | `coding-flows-classify-pr` |
+| **PR** (Reviewer cycle) | `idle-merge-ready`, `idle-coder-blocked` | `coding-flows-classify-pr-reviewer` |
+| **issue** (Coder cycle) | `wait-author`, `blocked-by-dep`, `out-of-scope` | local judgment |
+
+`wait-author` is an **issue-side** reason on the Coder cycle —
+clarification was asked, the `needs-human` label is on the issue, no
+new author response yet. It is **not** a PR state. A Reviewer cycle
+emitting `wait-author` for a PR is a bug: the Reviewer must call
+`coding-flows-classify-pr-reviewer` and use its enum.
 
 **"Needs human" has a precise meaning** — only items where the cycle
 triggered the [notification protocol](references/notification-protocol.md):
@@ -266,11 +288,13 @@ Things that look like that but belong in `Skipped`, not `Needs human`:
   The Reviewer cycle will pick it up automatically when CI is green;
   no human is needed.
 - "PR has stale LGTM, awaiting reviewer to re-sign" → **Skipped:
-  wait-lgtm-fresh**. Reviewer cycle handles this.
+  wait-lgtm-fresh** (Coder cycle) or **needs-review** (Reviewer cycle —
+  this is your queue, not a skip).
 - "Issue awaiting clarification response from author" → **Skipped:
-  wait-author**. The `needs-human` label is already on the issue from
-  when the question was asked; don't re-report each cycle.
-- "PR is in `wait-review`" → **Skipped**. Reviewer cycle owns next step.
+  wait-author** (issue row only). The `needs-human` label is already on
+  the issue from when the question was asked; don't re-report each cycle.
+- "PR is in `wait-review`" → **Skipped: wait-review** (Coder cycle).
+  Reviewer cycle owns next step.
 
 Use `Needs human` only for fresh notifications this cycle triggered
 (reason tags: `ambiguous-issue`, `disagreement`,
