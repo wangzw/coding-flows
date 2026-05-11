@@ -158,14 +158,36 @@ worktree_list() {
   '
 }
 
-# worktree_remove <branch> [--force] — remove the worktree + delete the
-# local branch. Refuses (returns 1) if the worktree has uncommitted changes,
-# unless --force is given. Returns 0 if there is no worktree to remove
-# (idempotent).
+# worktree_remove <branch> [--force | --merged-via-pr] — remove the worktree
+# + delete the local branch.
+#
+# Modes:
+#   (no flag)        Worktree-remove honors uncommitted-state guard (returns
+#                    1 on dirty). Branch is deleted with `git branch -d`
+#                    (merged-only). If a squash/rebase merge produced a
+#                    different hash than the local branch, -d refuses — caller
+#                    sees the warning.
+#   --force          Worktree-remove uses --force (discards uncommitted
+#                    files). Branch is force-deleted with `git branch -D`.
+#                    Use for abandoned branches.
+#   --merged-via-pr  Worktree-remove honors uncommitted-state guard (the work
+#                    was just merged, so worktree should be clean — protect
+#                    against accidental cruft). Branch is force-deleted with
+#                    `git branch -D` because we know the change is upstream
+#                    even though squash/rebase changed the hash. Use after a
+#                    successful `gh pr merge`.
+#
+# Returns 0 if there is no worktree to remove (idempotent).
 worktree_remove() {
   local branch="$1"
   local force=0
-  [[ "${2:-}" == "--force" ]] && force=1
+  local merged_via_pr=0
+  case "${2:-}" in
+    --force)          force=1 ;;
+    --merged-via-pr)  merged_via_pr=1 ;;
+    "")               ;;
+    *) log_error "worktree_remove: unknown flag '${2:-}'"; return 64 ;;
+  esac
 
   if [[ -z "$branch" ]]; then
     log_error "worktree_remove: missing branch name"
@@ -193,10 +215,12 @@ worktree_remove() {
     fi
   fi
 
-  # Delete local branch. -d (merged-only) when not forcing; -D otherwise.
+  # Delete local branch. -D for --force and --merged-via-pr (both know the
+  # work is preserved); -d for default (warn-on-divergence).
   if git show-ref --verify --quiet "refs/heads/$branch"; then
-    if [[ $force -eq 1 ]]; then
-      git branch -D "$branch" >/dev/null 2>&1 || true
+    if [[ $force -eq 1 || $merged_via_pr -eq 1 ]]; then
+      git branch -D "$branch" >/dev/null 2>&1 || \
+        log_warn "git branch -D '$branch' failed (still checked out somewhere?)"
     else
       git branch -d "$branch" >/dev/null 2>&1 || {
         log_warn "local branch '$branch' not deleted (not yet merged into upstream); use --force to override"

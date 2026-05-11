@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# coding-flows-worktree-remove <branch> [--force]
+# coding-flows-worktree-remove <branch> [--force | --merged-via-pr]
 #
 # Remove the managed worktree for <branch> and delete the local branch.
 # Refuses (exit 1) if the worktree has uncommitted changes, unless --force.
+# Pass --merged-via-pr after a gh pr merge to force-delete the local branch
+# whose hash diverged from upstream due to squash/rebase merge.
 # Idempotent: returns 0 if there is no worktree to remove.
 set -euo pipefail
 

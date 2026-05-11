@@ -350,7 +350,12 @@ _post_merge_cleanup() {
     cd "$main_root" 2>/dev/null || true
   fi
 
-  worktree_remove "$branch" || log_warn "post-merge: worktree_remove for $branch returned non-zero"
+  # Use --merged-via-pr: the PR has just been merged on the remote, so the
+  # local branch's commits are upstream under a (possibly different) squash
+  # hash. `git branch -d` would refuse because it only knows about the
+  # tracking branch, which gh just deleted. -D is safe here.
+  worktree_remove "$branch" --merged-via-pr \
+    || log_warn "post-merge: worktree_remove for $branch returned non-zero"
 
   # Clear local plan cache for this PR.
   local pr_cache

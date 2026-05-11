@@ -153,8 +153,59 @@ expected_cfg="$expected_root/.coding-flows.json"
 actual_cfg="$(realpath "$got_cfg" 2>/dev/null || echo "$got_cfg")"
 assert_eq "find_repo_config: works from worktree" "$expected_cfg" "$actual_cfg"
 
-# Clean up
+# Clean up feat/200-x worktree before --merged-via-pr tests
 in_repo worktree_remove "feat/200-x" --force >/dev/null 2>&1
+
+# --- --merged-via-pr flag ------------------------------------------------
+# Scenario: simulate the post-merge cleanup case. Create a branch, commit
+# something on it (so it diverges from main and `git branch -d` would
+# refuse), then call worktree_remove --merged-via-pr. Expect:
+# 1. Worktree dir is gone.
+# 2. Local branch is gone (because the script knew to use `git branch -D`).
+in_repo worktree_create "feat/300-merged" "origin/main" >/dev/null 2>&1
+merged_wt="$TMP_PARENT/feat-300-merged"
+( cd "$merged_wt"
+  git config core.hooksPath /dev/null
+  git config commit.gpgsign false
+  echo "feature work" > work.txt
+  git add work.txt
+  git commit -q -m "feature work that would be squashed"
+) >/dev/null
+
+# Sanity: `git branch -d` would refuse this branch.
+in_repo git branch -d "feat/300-merged" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "merged-via-pr: precondition (branch -d refuses divergent branch)" 1 "$rc"
+
+# Now use --merged-via-pr — should succeed and clean up both worktree + branch.
+in_repo worktree_remove "feat/300-merged" --merged-via-pr >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "merged-via-pr: ok" 0 "$rc"
+[[ -d "$merged_wt" ]] && rc=1 || rc=0
+assert_exit_code "merged-via-pr: worktree dir gone" 0 "$rc"
+in_repo git show-ref --verify --quiet "refs/heads/feat/300-merged" && rc=0 || rc=$?
+assert_exit_code "merged-via-pr: local branch deleted" 1 "$rc"
+
+# Idempotent: re-running on the absent branch is a no-op.
+in_repo worktree_remove "feat/300-merged" --merged-via-pr >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "merged-via-pr: idempotent" 0 "$rc"
+
+# --merged-via-pr still respects the uncommitted-state guard on worktree.
+# Create another worktree, leave uncommitted changes, expect refusal.
+in_repo worktree_create "feat/301-dirty" "origin/main" >/dev/null 2>&1
+dirty_wt="$TMP_PARENT/feat-301-dirty"
+( cd "$dirty_wt"
+  echo "uncommitted" > scratch.txt
+) >/dev/null
+in_repo worktree_remove "feat/301-dirty" --merged-via-pr >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "merged-via-pr: refuses dirty worktree" 1 "$rc"
+[[ -d "$dirty_wt" ]] && rc=0 || rc=1
+assert_exit_code "merged-via-pr: dirty worktree preserved" 0 "$rc"
+# Force-clean for teardown
+in_repo worktree_remove "feat/301-dirty" --force >/dev/null 2>&1
+
+# Unknown flag is rejected with exit 64.
+in_repo worktree_remove "feat/X" --bogus >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "remove: unknown flag rejected" 64 "$rc"
+
 rm -rf "$TMP_PARENT"
 
 test_summary
