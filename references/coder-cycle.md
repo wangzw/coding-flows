@@ -184,6 +184,51 @@ items where the [notification protocol](notification-protocol.md) has
 actually fired (label + marker comment). See SKILL.md § "Output
 protocol" for the full list of valid `Needs human` reason tags.
 
+## When does the cycle end?
+
+A cycle ends only when **no item — in either stage — is currently
+actionable**. "Actionable" means the canonical classifier
+(`coding-flows-classify-pr`) returns a non-`wait-*` state, or a Stage 2
+issue is in `start` / `clarify-responded` state.
+
+In particular, a cycle DOES NOT end while:
+
+- Any PR is in `address-changes` / `address-ci-fail` / `ready-to-merge`
+  (Stage 1 actionable). Process them in priority order; only after they
+  are all in `wait-*` states does the cycle move to Stage 2.
+- Any issue is `start`-ready (clear AC, no PR yet) AND all Stage 1
+  items are in waiting states. Pick one and run Phase A1 → D.
+- A previous Stage 1 action you just completed enables a follow-up
+  (e.g. you just merged a fix PR; a different PR's `address-ci-fail`
+  could now be cleared by a rebase). Do the follow-up in the **same**
+  cycle. Don't write "will rebase next cycle" and end.
+
+### Anti-patterns observed in transcripts
+
+These all amount to "ending the cycle early when more work is sitting
+right there". They produce the "issue stuck for N cycles" failure
+mode. Don't do them:
+
+- **"Will rebase next cycle"** — a rebase is a 30-second action
+  (`git rebase origin/main && git push --force-with-lease`). If you
+  identify that an open PR needs rebase because main moved, do it
+  now in this cycle.
+- **"Log not yet available"** — if classify reports `address-ci-fail`
+  the run has reached a failure conclusion and `gh run view --log-failed`
+  works. If the run is still in progress, classify reports `wait-ci`
+  (skip is correct). Don't conflate the two.
+- **"PR-side fixes took the cycle"** — there is no cycle time budget
+  (see "No per-cycle time budget" above). If Stage 1 is exhausted
+  and Stage 2 has actionable issues, process them. The user observed
+  issues #257, #266, #268 stuck for 15+ cycles with this excuse —
+  they never got worse, the Coder just never started them.
+- **"Deferred — medium-large scope"** — size alone is not a deferral
+  reason. See Phase A1 below.
+
+If after walking every Stage 1 actionable item and every Stage 2
+actionable item, every remaining item is in a wait state OR
+`needs-human`, THEN end the cycle.
+
 ## Phase A1 — Feasibility check + plan bootstrap (per issue)
 
 For each `start` or `clarify` issue, before opening a worktree:
