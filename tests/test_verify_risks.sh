@@ -99,4 +99,31 @@ body="$(body_with_risks \
 out="$(verify_risks "$body" 2>/dev/null)" && rc=0 || rc=$?
 assert_exit_code "escaped-pipe: exit 0" 0 "$rc"
 
+# Test 12: marker `categories=none` + none-only table → exit 0
+# Observed bug: the marker normalizer didn't filter "none", so
+# `categories=none` mismatched the table's empty distinct-csv. Treating
+# `none` as the absence-of-risk sentinel (semantically equivalent to
+# empty) lets either form pass.
+body="$(body_with_risks \
+  '<!-- coding-flows:risks categories=none -->' \
+  $'| none | — | — |')"
+out="$(verify_risks "$body" 2>/dev/null)" && rc=0 || rc=$?
+assert_exit_code "categories=none + none-only table: exit 0" 0 "$rc"
+
+# Test 13: marker `categories=none` + non-none table → still fails
+# (regression check — the loosening shouldn't accept mismatched markers).
+body="$(body_with_risks \
+  '<!-- coding-flows:risks categories=none -->' \
+  $'| migration | adds col | backfill |')"
+verify_risks "$body" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "categories=none + migration table: exit 1" 1 "$rc"
+
+# Test 14: marker `categories=migration,none` + only-migration table → pass
+# (none in marker is allowed alongside real categories — it's a no-op).
+body="$(body_with_risks \
+  '<!-- coding-flows:risks categories=migration,none -->' \
+  $'| migration | adds col | backfill |')"
+verify_risks "$body" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "categories=migration,none + migration table: exit 0" 0 "$rc"
+
 test_summary

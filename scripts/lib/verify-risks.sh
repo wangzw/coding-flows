@@ -168,8 +168,12 @@ verify_risks() {
 
   local marker_csv
   marker_csv="$(_extract_risks_marker <<<"$body")"
+  # Normalize the marker the same way as distinct_csv: drop "none" (which is
+  # the absence-of-risk sentinel — semantically equivalent to an empty list)
+  # and de-dup. This lets `categories=` and `categories=none` both pass for a
+  # none-only Risks table.
   local marker_sorted
-  marker_sorted="$(printf '%s\n' "$marker_csv" | tr ',' '\n' | grep -v '^$' | sort -u | paste -sd, -)"
+  marker_sorted="$(printf '%s\n' "$marker_csv" | tr ',' '\n' | grep -vxE '|none' | sort -u | paste -sd, -)"
   if [[ "$marker_sorted" != "$distinct_csv" ]]; then
     log_error "risks: marker categories ($marker_sorted) != table categories ($distinct_csv)"
     return 1
