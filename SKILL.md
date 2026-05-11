@@ -287,7 +287,7 @@ classifier for **every** PR in the input list, every cycle.
 |-----------|---------------------------|--------|
 | **PR** (Coder cycle) | `wait-ci`, `wait-review`, `wait-lgtm-fresh`, `merge-conflict`, `wip` | `coding-flows-classify-pr` |
 | **PR** (Reviewer cycle) | `idle-merge-ready`, `idle-coder-blocked` | `coding-flows-classify-pr-reviewer` |
-| **issue** (Coder cycle) | `wait-author`, `blocked-by-dep`, `out-of-scope` | local judgment |
+| **issue** (Coder cycle) | `wait-author`, `blocked-by-dep`, `out-of-scope`, `next-cycle` | local judgment |
 
 Issue-side `Skipped:` reasons — exact definitions:
 
@@ -302,6 +302,12 @@ Issue-side `Skipped:` reasons — exact definitions:
   decision pending, requires human research, owned by another team).
   Should be rare; once marked, expect it to stay marked across many
   cycles. NOT for "deferring to next cycle".
+- `next-cycle` — valid Stage 2 issue, Coder is serial (one Stage 2
+  issue picked per cycle), this one wasn't chosen. The next cycle
+  re-evaluates from Phase A; no human action implied. This is the
+  correct reason for "issue I would have worked on but had to pick
+  another one first." Optional `(reason)` suffix to note why a peer
+  issue was prioritized (e.g. `next-cycle (smaller scope picked first)`).
 
 A Reviewer cycle emitting `wait-author` for a PR is a bug: the
 Reviewer must call `coding-flows-classify-pr-reviewer` and use its

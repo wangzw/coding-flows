@@ -246,6 +246,14 @@ mode. Don't do them:
   point of view. Always pass `--assignee @me` on `gh pr create` (see
   Phase D). If you forgot, run `gh pr edit <PR> --add-assignee @me`
   immediately — same cycle, before rotating away.
+- **`out-of-scope` with "this cycle" suffix** — observed: a cycle
+  picked one Stage 2 issue (#292) and marked the other 10 open issues
+  `out-of-scope this cycle`. `out-of-scope` is permanent ("not for the
+  Coder") and the "this cycle" qualifier turns it into a fig leaf for
+  serial deferral. The correct reason for "valid issue, didn't get
+  picked because I'm serial" is `next-cycle` — see SKILL.md output
+  protocol. The next cycle re-evaluates from Phase A, no human action
+  implied.
 
 If after walking every Stage 1 actionable item and every Stage 2
 actionable item, every remaining item is in a wait state OR
