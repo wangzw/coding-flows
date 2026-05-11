@@ -174,6 +174,7 @@ findings before reaching its own conclusion.
 | 8 | Dual LGTM if any `high-risk:*` label | `coding-flows-merge` Gate 8 |
 | 9 | `## Risks` table + marker | `coding-flows-verify-risks` |
 | 10 | Every changed file claimed by AC mapping / Support files / excludes | `coding-flows-verify-scope-envelope` |
+| 11 | No unchecked `- [ ]` items in `## Test plan` | `coding-flows-verify-test-plan` |
 
 Full reference: [`references/merge-gates.md`](references/merge-gates.md).
 

@@ -124,7 +124,8 @@ assert_exit_code  "resume: exit 0" 0 "$rc"
 assert_exit_code  "resume: dir exists" 0 "$rc"
 resume_branch="$(cd "$got_resume" && git rev-parse --abbrev-ref HEAD)"
 assert_eq         "resume: same branch attached" "fix/100-bar" "$resume_branch"
-( cd "$got_resume" && git log --oneline | grep -q stuff ) && rc=0 || rc=$?
+log_out="$( cd "$got_resume" && git log --oneline 2>/dev/null )"
+[[ "$log_out" == *stuff* ]] && rc=0 || rc=1
 assert_exit_code  "resume: prior commit preserved" 0 "$rc"
 
 # Idempotent cleanup

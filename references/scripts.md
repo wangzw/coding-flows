@@ -66,6 +66,24 @@ Validates the `## Risks` section per Gate 9. Emits
 `RISKS_CATEGORIES=<csv>` (non-`none` categories declared by the Coder).
 Tests: `tests/test_verify_risks.sh`.
 
+### `coding-flows-verify-test-plan`
+
+```
+coding-flows-verify-test-plan <PR>
+coding-flows-verify-test-plan --from-file <pr-view-json>
+```
+
+Validates Gate 11. Scans the PR body's `## Test plan` section for
+unchecked `- [ ]` checkboxes. Emits `TEST_PLAN_UNCHECKED=<count>` to
+stdout and the offending lines to stderr. Exit 0 if all checkboxes are
+checked or the section is absent.
+
+Section is opt-in — PRs that need no manual verification may omit
+`## Test plan` entirely. PRs that include it must leave no `- [ ]`
+items by merge time.
+
+Tests: `tests/test_verify_test_plan.sh`.
+
 ### `coding-flows-verify-scope-envelope`
 
 ```
@@ -250,6 +268,7 @@ Exit codes map to gate failures:
 | 18   | `dual-lgtm-missing`          |
 | 19   | `scope-envelope-violation`   |
 | 20   | `risks-missing-or-malformed` |
+| 21   | `test-plan-incomplete`       |
 | 69   | `auth-broken` or `gh` error  |
 
 Tests: `tests/test_merge.sh`.

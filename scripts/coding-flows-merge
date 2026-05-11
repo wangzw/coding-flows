@@ -27,6 +27,8 @@ source "$SCRIPT_DIR/lib/verify-ac-mapping.sh"
 source "$SCRIPT_DIR/lib/verify-risks.sh"
 # shellcheck source=lib/verify-scope-envelope.sh
 source "$SCRIPT_DIR/lib/verify-scope-envelope.sh"
+# shellcheck source=lib/verify-test-plan.sh
+source "$SCRIPT_DIR/lib/verify-test-plan.sh"
 # shellcheck source=lib/verify-lgtm-coverage.sh
 source "$SCRIPT_DIR/lib/verify-lgtm-coverage.sh"
 # shellcheck source=lib/worktree.sh
@@ -45,6 +47,7 @@ EC_MERGE_METHOD=17
 EC_DUAL_LGTM=18
 EC_SCOPE_ENVELOPE=19
 EC_RISKS=20
+EC_TEST_PLAN=21
 
 main() {
   local dry_run=0
@@ -97,6 +100,15 @@ main() {
   if ! verify_scope_envelope "$PR_VIEW_JSON" >/dev/null; then
     log_error "Gate 10 (scope-envelope-violation)"
     return $EC_SCOPE_ENVELOPE
+  fi
+
+  # Gate 11 — Test plan: no unchecked `- [ ]` items in the `## Test plan`
+  # section. Coder either checks them after manual verification or removes
+  # the items entirely.
+  if ! verify_test_plan "$body" >/dev/null 2>&1; then
+    verify_test_plan "$body" >/dev/null  # re-run to surface stderr
+    log_error "Gate 11 (test-plan-incomplete)"
+    return $EC_TEST_PLAN
   fi
 
   # Gate 4 — LGTM coverage (subsumes the old separate review-plan gate)

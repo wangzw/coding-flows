@@ -44,6 +44,9 @@ Closes #<ISSUE>
 
 ## Test plan
 
-<bulleted list of how to manually verify, beyond what CI runs>
+<!-- Manual verification steps beyond CI. Every `- [ ]` here must be
+     `- [x]` before merge (Gate 11), or the item must be removed if it
+     doesn't apply. Drop the entire section for PRs that need no manual
+     verification. -->
 
 - [ ] …

@@ -1,12 +1,12 @@
 # Merge gates
 
-All 10 gates are enforced mechanically by `scripts/coding-flows-merge`. Agents
+All 11 gates are enforced mechanically by `scripts/coding-flows-merge`. Agents
 must never call `gh pr merge` directly.
 
-Gates 1–8 are Reviewer-and-handoff oriented; Gates 9–10 are Coder-quality
-gates (declared risks, scope tightness) and run before Gate 4 so the
-Reviewer's coverage check (Gate 4) operates on a PR body that already
-satisfies structure requirements.
+Gates 1–8 are Reviewer-and-handoff oriented; Gates 9–11 are Coder-quality
+gates (declared risks, scope tightness, test-plan completion) and run
+before Gate 4 so the Reviewer's coverage check (Gate 4) operates on a PR
+body that already satisfies structure requirements.
 
 ## Gate 1 — CI green
 
@@ -141,6 +141,28 @@ matches `backend/foo/service.go` in the changed-files list.
 Validated by `scripts/coding-flows-verify-scope-envelope`. Exit code 19 on
 failure with the unclaimed file list in stderr + stdout.
 
+## Gate 11 — Test plan complete
+
+The PR body's `## Test plan` section must not contain any unchecked
+Markdown checkboxes (`- [ ]`). The Coder fills the test plan with
+manual-verification items they intend to run; leaving any unchecked at
+merge time means the manual work wasn't done.
+
+Rules:
+
+- If the PR body has no `## Test plan` section → pass (opt-in).
+- If the section has no checkboxes (just prose or nothing) → pass.
+- If the section has any `- [ ]` line → fail with the list of unchecked
+  items in stderr.
+
+To pass after a finding: either run the manual verification and flip
+the box to `- [x]` (with optional inline notes like
+`- [x] manual: confirmed no warnings`), or remove the item entirely if
+it doesn't apply.
+
+Validated by `scripts/coding-flows-verify-test-plan`. Exit code 21 on
+failure.
+
 ## Gate 8 — High-risk dual LGTM
 
 If the PR carries any `high-risk:*` label, the union of `LGTM_REVIEWERS`
@@ -170,6 +192,7 @@ See [high-risk-pr.md](high-risk-pr.md) for the full dual-reviewer protocol.
 | 18   | `dual-lgtm-missing`          |
 | 19   | `scope-envelope-violation`   |
 | 20   | `risks-missing-or-malformed` |
+| 21   | `test-plan-incomplete`       |
 
 The Coder cycle parses this and:
 
