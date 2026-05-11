@@ -239,6 +239,13 @@ mode. Don't do them:
   they never got worse, the Coder just never started them.
 - **"Deferred — medium-large scope"** — size alone is not a deferral
   reason. See Phase A1 below.
+- **`gh pr create` without `--assignee @me`** — observed: Coder
+  opened PRs #291 and #293 with no assignee. The Reviewer's Phase A
+  query filters by `--assignee`, so the PRs were invisible to the
+  Reviewer. The PRs sat at "no LGTM" forever from the Reviewer's
+  point of view. Always pass `--assignee @me` on `gh pr create` (see
+  Phase D). If you forgot, run `gh pr edit <PR> --add-assignee @me`
+  immediately — same cycle, before rotating away.
 
 If after walking every Stage 1 actionable item and every Stage 2
 actionable item, every remaining item is in a wait state OR
@@ -378,7 +385,22 @@ coding-flows-coder-plan validate <branch>
 RENDERED="$(coding-flows-coder-plan render <branch>)"
 
 git push -u origin <branch>
-gh pr create --assignee <acting_user> --title "..." --body "$(printf '%s\n\nCloses #%s\n\n%s\n' "$SUMMARY" "$ISSUE" "$RENDERED")"
+# IMPORTANT: --assignee @me is mandatory. Without it the Reviewer's
+# Phase A query (`gh pr list --assignee <acting_user>`) cannot see the
+# PR, and review never starts. Use the literal @me — gh resolves it to
+# the authenticated user. Do not omit and do not substitute a bare
+# placeholder.
+PR_URL="$(gh pr create --assignee @me \
+  --title "..." \
+  --body "$(printf '%s\n\nCloses #%s\n\n%s\n' "$SUMMARY" "$ISSUE" "$RENDERED")")"
+PR_NUM="${PR_URL##*/}"
+
+# Verify assignee landed (gh silently ignores --assignee on rare
+# permission failures; falling back here costs one API call and
+# prevents the "PR invisible to Reviewer" failure mode).
+if [[ -z "$(gh pr view "$PR_NUM" --json assignees --jq '.assignees[].login' | head -n1)" ]]; then
+  gh pr edit "$PR_NUM" --add-assignee @me
+fi
 ```
 
 The full PR body uses [templates/pr-body.md](../templates/pr-body.md) and
