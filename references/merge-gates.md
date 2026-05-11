@@ -1,12 +1,13 @@
 # Merge gates
 
-All 11 gates are enforced mechanically by `scripts/coding-flows-merge`. Agents
+All 12 gates are enforced mechanically by `scripts/coding-flows-merge`. Agents
 must never call `gh pr merge` directly.
 
-Gates 1–8 are Reviewer-and-handoff oriented; Gates 9–11 are Coder-quality
-gates (declared risks, scope tightness, test-plan completion) and run
-before Gate 4 so the Reviewer's coverage check (Gate 4) operates on a PR
-body that already satisfies structure requirements.
+Gates 1–8 are Reviewer-and-handoff oriented; Gates 9–12 are Coder-quality
+gates (declared risks, scope tightness, test-plan completion, issue↔PR
+AC parity) and run before Gate 4 so the Reviewer's coverage check
+(Gate 4) operates on a PR body that already satisfies structure
+requirements.
 
 ## Gate 1 — CI green
 
@@ -166,6 +167,37 @@ To pass after a finding, the Coder must either:
 Validated by `scripts/coding-flows-verify-test-plan`. Exit code 21 on
 failure.
 
+## Gate 12 — Issue↔PR AC count parity
+
+The PR body's `## AC mapping` table must have **at least as many rows
+as the linked issue's `## Acceptance criteria` checklist declares**.
+
+Catches a real failure mode: the Coder transcribes only some of the
+issue's AC items into the PR body table, the Reviewer reviews against
+the (incomplete) table without ever reading the issue, and the PR
+merges with AC items silently dropped.
+
+Comparison is row count (PR side) vs. bullet count under the issue's
+AC section. PR side may legitimately have MORE rows than the issue
+(Coder split one issue AC into multiple PR ACs, or added a derived
+AC). PR side may NOT have fewer.
+
+The linked issue body must be available on `.linkedIssueBody`; in
+live mode `load_pr_view` fetches it automatically. In `--from-file`
+fixture mode without the field, the gate skips with a warning.
+
+Validated by `scripts/coding-flows-verify-issue-ac`. Exit code 22 on
+failure with the full issue AC list logged to stderr.
+
+## After successful merge: issue AC checkboxes
+
+After `gh pr merge` succeeds, the script also updates the linked
+issue's body to flip `- [ ]` AC items under `## Acceptance criteria` /
+`Requirements` / `ACs` to `- [x]`. Best-effort: any failure
+(concurrent edit race, gh API hiccup) is warned but doesn't abort the
+merge. Opt-out via `.coding-flows.json`
+`merge.update_issue_acs: false`.
+
 ## Gate 8 — High-risk dual LGTM
 
 If the PR carries any `high-risk:*` label, the union of `LGTM_REVIEWERS`
@@ -196,6 +228,7 @@ See [high-risk-pr.md](high-risk-pr.md) for the full dual-reviewer protocol.
 | 19   | `scope-envelope-violation`   |
 | 20   | `risks-missing-or-malformed` |
 | 21   | `test-plan-incomplete`       |
+| 22   | `issue-ac-parity-violation`  |
 
 The Coder cycle parses this and:
 

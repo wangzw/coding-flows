@@ -175,6 +175,7 @@ findings before reaching its own conclusion.
 | 9 | `## Risks` table + marker | `coding-flows-verify-risks` |
 | 10 | Every changed file claimed by AC mapping / Support files / excludes | `coding-flows-verify-scope-envelope` |
 | 11 | No unchecked `- [ ]` items in `## Test plan` | `coding-flows-verify-test-plan` |
+| 12 | PR body AC mapping has ≥ rows as linked issue's `## Acceptance criteria` | `coding-flows-verify-issue-ac` |
 
 Full reference: [`references/merge-gates.md`](references/merge-gates.md).
 

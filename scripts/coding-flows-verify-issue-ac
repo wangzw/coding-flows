@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# coding-flows-verify-issue-ac <PR>
+# coding-flows-verify-issue-ac --from-file <pr-view-json>
+#
+# Asserts the PR's AC mapping table has at least as many rows as the
+# linked issue's `## Acceptance criteria` checklist. Catches Coder
+# silently dropping AC items between issue and PR.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/verify-ac-mapping.sh
+source "$SCRIPT_DIR/lib/verify-ac-mapping.sh"
+# shellcheck source=lib/verify-issue-ac.sh
+source "$SCRIPT_DIR/lib/verify-issue-ac.sh"
+
+main() {
+  load_pr_view "$@"
+  verify_issue_ac "$PR_VIEW_JSON"
+}
+
+main "$@"

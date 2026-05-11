@@ -19,6 +19,8 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/verify-ac-mapping.sh"
 # shellcheck source=lib/verify-risks.sh
 source "$SCRIPT_DIR/lib/verify-risks.sh"
+# shellcheck source=lib/verify-issue-ac.sh
+source "$SCRIPT_DIR/lib/verify-issue-ac.sh"
 # shellcheck source=lib/show-coverage.sh
 source "$SCRIPT_DIR/lib/show-coverage.sh"
 

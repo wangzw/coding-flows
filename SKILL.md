@@ -112,6 +112,11 @@ agents **must not** call `gh pr merge` directly.
     `- [.]`, or any other non-`[x]` form blocks merge. Coder must either
     run the manual verification and mark `- [x]`, or remove the entire
     bullet line.
+12. **Issue↔PR AC count parity** — PR body's `## AC mapping` table has
+    at least as many rows as the linked issue's `## Acceptance criteria`
+    checklist. Catches Coder silently dropping AC items between issue
+    and PR. Skipped (with warning) if the linked issue body can't be
+    fetched.
 
 Full reference: **[references/merge-gates.md](references/merge-gates.md)**.
 
@@ -202,6 +207,7 @@ that takes JSON via stdin or arg (so tests can run with fixtures).
 | `coding-flows-verify-ac-mapping`     | Parse PR body, validate AC mapping table |
 | `coding-flows-verify-risks`          | Parse PR body, validate `## Risks` section (Gate 9) |
 | `coding-flows-verify-scope-envelope` | Confirm every changed file is claimed (Gate 10) |
+| `coding-flows-verify-issue-ac`       | Gate 12: PR body AC mapping covers every issue AC item |
 | `coding-flows-coder-plan`            | Manage Coder's local working plan: init/path/render/validate |
 | `coding-flows-clarification-status`  | Determine if a `clarify`-state issue is now actionable |
 | `coding-flows-check-lgtm`            | Parse `/lgtm` markers; confirm head-binding |

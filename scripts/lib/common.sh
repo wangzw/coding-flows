@@ -187,6 +187,29 @@ load_pr_view() {
       number,title,body,headRefName,headRefOid,baseRefName,comments,commits,labels,files,statusCheckRollup,reviewDecision,reviews,state,isDraft 2>&1)" \
       || { log_error "gh pr view failed: $PR_VIEW_JSON"; return 69; }
     PR_VIEW_SOURCE="gh"
+
+    # Also fetch every linked issue body (best effort). A PR can close
+    # multiple issues via `Closes #A`, `Fixes #B`, `Resolves #C`. We
+    # attach them as `linkedIssues: [{number, body}, ...]` on
+    # PR_VIEW_JSON so downstream gates (e.g. issue↔PR AC parity) can
+    # sum across all of them.
+    local linked_nums
+    linked_nums="$(jq -r '.body // ""' <<<"$PR_VIEW_JSON" \
+      | grep -ioE '(close[ds]?|fix(ed|es)?|resolve[ds]?)[[:space:]]+#[0-9]+' \
+      | grep -oE '[0-9]+' \
+      | awk '!seen[$0]++' || true)"
+    if [[ -n "$linked_nums" ]]; then
+      local linked_arr='[]' n linked_body
+      while IFS= read -r n; do
+        [[ -z "$n" ]] && continue
+        if linked_body="$(gh issue view "$n" --json body --jq .body 2>/dev/null)"; then
+          linked_arr="$(jq --argjson n "$n" --arg b "$linked_body" \
+            '. + [{number: $n, body: $b}]' <<<"$linked_arr")"
+        fi
+      done <<< "$linked_nums"
+      PR_VIEW_JSON="$(jq --argjson arr "$linked_arr" \
+        '. + {linkedIssues: $arr}' <<<"$PR_VIEW_JSON")"
+    fi
   else
     log_error "no PR number or --from-file specified"
     return 64

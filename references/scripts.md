@@ -93,6 +93,26 @@ Validates the `## Risks` section per Gate 9. Emits
 `RISKS_CATEGORIES=<csv>` (non-`none` categories declared by the Coder).
 Tests: `tests/test_verify_risks.sh`.
 
+### `coding-flows-verify-issue-ac`
+
+```
+coding-flows-verify-issue-ac <PR>
+coding-flows-verify-issue-ac --from-file <pr-view-json>
+```
+
+Validates Gate 12 — PR body's AC mapping table has ≥ as many rows as
+the linked issue's `## Acceptance criteria` checklist. Catches the
+Coder dropping AC items between issue and PR. Emits
+`ISSUE_AC_COUNT=<n>` + `PR_AC_COUNT=<n>` to stdout; failing items go
+to stderr.
+
+Requires `.linkedIssueBody` on the PR-view JSON. `load_pr_view`
+attaches it automatically in live mode (fetches via `gh issue view`).
+In `--from-file` fixture mode without the field, gate skips with a
+warning.
+
+Tests: `tests/test_verify_issue_ac.sh`.
+
 ### `coding-flows-verify-test-plan`
 
 ```
@@ -354,6 +374,7 @@ Exit codes map to gate failures:
 | 19   | `scope-envelope-violation`   |
 | 20   | `risks-missing-or-malformed` |
 | 21   | `test-plan-incomplete`       |
+| 22   | `issue-ac-parity-violation`  |
 | 69   | `auth-broken` or `gh` error  |
 
 Tests: `tests/test_merge.sh`.

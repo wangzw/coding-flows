@@ -29,6 +29,8 @@ source "$SCRIPT_DIR/lib/verify-risks.sh"
 source "$SCRIPT_DIR/lib/verify-scope-envelope.sh"
 # shellcheck source=lib/verify-test-plan.sh
 source "$SCRIPT_DIR/lib/verify-test-plan.sh"
+# shellcheck source=lib/verify-issue-ac.sh
+source "$SCRIPT_DIR/lib/verify-issue-ac.sh"
 # shellcheck source=lib/verify-lgtm-coverage.sh
 source "$SCRIPT_DIR/lib/verify-lgtm-coverage.sh"
 # shellcheck source=lib/worktree.sh
@@ -48,6 +50,7 @@ EC_DUAL_LGTM=18
 EC_SCOPE_ENVELOPE=19
 EC_RISKS=20
 EC_TEST_PLAN=21
+EC_ISSUE_AC_PARITY=22
 
 main() {
   local dry_run=0
@@ -109,6 +112,17 @@ main() {
     verify_test_plan "$body" >/dev/null  # re-run to surface stderr
     log_error "Gate 11 (test-plan-incomplete)"
     return $EC_TEST_PLAN
+  fi
+
+  # Gate 12 — Issue↔PR AC count parity. PR body's AC mapping must have at
+  # least as many rows as the linked issue's `## Acceptance criteria`
+  # checklist declares. Skipped (with warning) if no linkedIssueBody is
+  # available (test fixtures without it, or live mode where gh issue
+  # view failed).
+  if ! verify_issue_ac "$PR_VIEW_JSON" >/dev/null 2>&1; then
+    verify_issue_ac "$PR_VIEW_JSON" >/dev/null  # re-run to surface stderr
+    log_error "Gate 12 (issue-ac-parity-violation)"
+    return $EC_ISSUE_AC_PARITY
   fi
 
   # Gate 4 — LGTM coverage (subsumes the old separate review-plan gate)
@@ -220,15 +234,28 @@ main() {
 
   gh pr merge "$pr" "${args_merge[@]}"
 
-  # Post one-line thanks on linked issue
-  local issue_num
-  issue_num="$(grep -ioE '(close[ds]?|fix(ed|es)?|resolve[ds]?)[[:space:]]+#[0-9]+' <<<"$body" | head -n1 | grep -oE '[0-9]+' || true)"
-  local post_thanks
+  # Enumerate every linked issue (a single PR can close multiple via
+  # `Closes #A`, `Fixes #B`, `Resolves #C`). Post thanks + check off ACs
+  # on each.
+  local linked_issues
+  linked_issues="$(grep -ioE '(close[ds]?|fix(ed|es)?|resolve[ds]?)[[:space:]]+#[0-9]+' <<<"$body" \
+    | grep -oE '[0-9]+' \
+    | awk '!seen[$0]++' || true)"
+  local post_thanks update_acs
   post_thanks="$(read_config '.merge.post_merge_issue_comment' 'true')"
-  if [[ -n "$issue_num" && "$post_thanks" == "true" ]]; then
-    gh issue comment "$issue_num" --body "Shipped in #$pr — thanks!" >/dev/null || \
-      log_warn "could not post thanks comment on issue #$issue_num"
-  fi
+  update_acs="$(read_config '.merge.update_issue_acs' 'true')"
+  local issue_num
+  while IFS= read -r issue_num; do
+    [[ -z "$issue_num" ]] && continue
+    if [[ "$post_thanks" == "true" ]]; then
+      gh issue comment "$issue_num" --body "Shipped in #$pr — thanks!" >/dev/null || \
+        log_warn "could not post thanks comment on issue #$issue_num"
+    fi
+    if [[ "$update_acs" == "true" ]]; then
+      _check_off_issue_acs "$issue_num" "$pr" || \
+        log_warn "issue AC checkbox update failed for #$issue_num"
+    fi
+  done <<< "$linked_issues"
 
   # Post-merge worktree + cache cleanup. Best-effort: anything unexpected
   # (uncommitted state, missing branch info) → warn + leave for manual.
@@ -237,6 +264,55 @@ main() {
   fi
 
   return $EC_OK
+}
+
+# _check_off_issue_acs <issue#> <pr#> — flip `- [ ]` AC items to `- [x]`
+# in the linked issue body. Only edits bullets under the `## Acceptance
+# criteria` / `Requirements` / `ACs` section. Best-effort; logs and
+# returns non-zero on any failure but never aborts the merge flow.
+_check_off_issue_acs() {
+  local issue="$1" pr="$2"
+  local current
+  if ! current="$(gh issue view "$issue" --json body --jq .body 2>/dev/null)"; then
+    log_warn "_check_off_issue_acs: gh issue view failed for #$issue"
+    return 1
+  fi
+
+  # Use awk to flip `- [ ]` → `- [x]` only inside the AC section.
+  local updated
+  updated="$(awk '
+    BEGIN { in_sec=0 }
+    /^##[[:space:]]/ {
+      lc = tolower($0)
+      if (lc ~ /^## *(acceptance[[:space:]]+criteria|acs|requirements)([^[:alnum:]_]|$)/) {
+        in_sec=1; print; next
+      }
+      if (in_sec) { in_sec=0 }
+    }
+    {
+      if (in_sec) {
+        # Replace `- [ ]` / `* [ ]` (with any leading whitespace) by the
+        # checked form. Be careful to only touch bullet checkboxes,
+        # not arbitrary `[ ]` in prose.
+        if ($0 ~ /^[[:space:]]*[-*][[:space:]]+\[ \]/) {
+          sub(/\[ \]/, "[x]")
+        }
+      }
+      print
+    }
+  ' <<<"$current")"
+
+  if [[ "$current" == "$updated" ]]; then
+    log_info "issue #$issue: no `- [ ]` AC items to update"
+    return 0
+  fi
+
+  if ! gh issue edit "$issue" --body "$updated" >/dev/null 2>&1; then
+    log_warn "_check_off_issue_acs: gh issue edit failed for #$issue (may have raced with another edit)"
+    return 1
+  fi
+  log_info "issue #$issue: AC checkboxes updated to [x] (merged via #$pr)"
+  return 0
 }
 
 # _post_merge_cleanup <pr-number> <pr-view-json> — remove the worktree for
