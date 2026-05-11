@@ -42,16 +42,25 @@ gh issue list --assignee <acting_user> --state open \
   --json number,title,labels,body,author,url
 ```
 
-For each PR, derive a **state** that determines the Coder's next action:
+For each PR, derive a **state** that determines the Coder's next action.
+**Run `coding-flows-classify-pr <PR>` to get the state — do NOT inspect
+`gh pr view`'s `reviewDecision` or other raw fields.** `/lgtm` is a
+comment marker, not a formal GitHub review, so `reviewDecision` stays
+`""` regardless of how many LGTMs the PR carries. The classify script
+wraps the canonical logic (CHANGES_REQUESTED supersession + CI status
++ `check_lgtm`) and is the only authoritative source.
 
 | State | Condition (PR) | Coder action |
 |-------|----------------|--------------|
 | `address-changes` | Most recent reviewer review is `CHANGES_REQUESTED` and not superseded by a later same-author `/lgtm` | Phase E |
 | `address-ci-fail` | `statusCheckRollup` contains a `FAILURE`/`ERROR`/`CANCELLED` | Phase E (fix-and-push) |
-| `ready-to-merge` | `scripts/coding-flows-merge --dry-run` would exit 0 | Phase F |
-| `wait-ci` | CI in progress | **skip** (record in summary) |
-| `wait-review` | CI green, no LGTM yet, no CHANGES_REQUESTED to address | **skip** |
-| `wait-lgtm-fresh` | LGTM exists but bound to older head SHA (already pushed) | **skip** |
+| `ready-to-merge` | CI green + current LGTM bound to head; confirm with `coding-flows-merge --dry-run` before merging (other gates may fail) | Phase F |
+| `wait-ci` | At least one check is `PENDING`/`IN_PROGRESS`/`QUEUED` | **skip** (record in summary) |
+| `wait-review` | CI green, no `/lgtm` marker at all | **skip** |
+| `wait-lgtm-fresh` | CI green, `/lgtm` exists but bound to older head SHA (Coder pushed since) | **skip** |
+
+State precedence (when multiple conditions apply): `address-changes` >
+`address-ci-fail` > `wait-ci` > (LGTM-derived state).
 
 **Advisory comments are not states.** A Reviewer review submitted with
 `gh pr review --comment` (not `--request-changes`) does not put the PR

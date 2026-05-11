@@ -201,6 +201,7 @@ that takes JSON via stdin or arg (so tests can run with fixtures).
 | `coding-flows-clarification-status`  | Determine if a `clarify`-state issue is now actionable |
 | `coding-flows-check-lgtm`            | Parse `/lgtm` markers; confirm head-binding |
 | `coding-flows-verify-lgtm-coverage`  | Demand `acs=`/`invariants=`/`risks-reviewed=` claims cover Coder's declarations |
+| `coding-flows-classify-pr`           | Coder Phase A: canonical PR state (`address-changes` / `ready-to-merge` / `wait-*`) — use this instead of inspecting `reviewDecision` |
 | `coding-flows-fetch-for-reviewer`    | Emit a comment-filtered PR view for dual-reviewer blindness |
 | `coding-flows-worktree-create`       | Open a managed worktree for an issue |
 | `coding-flows-worktree-list`         | List all managed worktrees + branches + heads |

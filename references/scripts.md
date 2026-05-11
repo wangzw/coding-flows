@@ -184,6 +184,30 @@ coding-flows-worktree-prune                             # remove merged/closed P
 
 Tests: `tests/test_worktree.sh`.
 
+### `coding-flows-classify-pr`
+
+```
+coding-flows-classify-pr <PR>
+coding-flows-classify-pr --from-file <pr-view-json>
+```
+
+Emits `PR_STATE=<state>` for use during Coder Phase A. State is one of:
+`address-changes`, `address-ci-fail`, `ready-to-merge`, `wait-ci`,
+`wait-review`, `wait-lgtm-fresh` — see
+[coder-cycle.md](coder-cycle.md) for definitions and processing order.
+
+**Use this script — don't inspect `gh pr view` fields directly.**
+`/lgtm` is a comment marker, not a formal review, so `reviewDecision`
+stays `""` regardless of how many LGTMs the PR carries. The classify
+script wraps CHANGES_REQUESTED supersession logic + CI status + `check_lgtm`
+exit codes into one authoritative answer.
+
+For `ready-to-merge`, follow up with `coding-flows-merge --dry-run`
+before actually merging — `ready-to-merge` here only confirms CI + LGTM;
+other gates (AC mapping, scope envelope, risks, etc.) can still fail.
+
+Tests: `tests/test_classify_pr.sh`.
+
 ### `coding-flows-fetch-for-reviewer`
 
 ```

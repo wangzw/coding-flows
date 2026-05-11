@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# coding-flows-classify-pr <PR> | --from-file <pr-view-json>
+#
+# Emit `PR_STATE=<state>` (see scripts/lib/classify-pr.sh for the state
+# enum). This is the single source of truth the Coder cycle should use
+# during Phase A — do not classify PRs by inspecting raw `gh pr view`
+# fields like `reviewDecision`, because `/lgtm` is a comment marker, not
+# a formal review.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/check-lgtm.sh
+source "$SCRIPT_DIR/lib/check-lgtm.sh"
+# shellcheck source=lib/classify-pr.sh
+source "$SCRIPT_DIR/lib/classify-pr.sh"
+
+main() {
+  load_pr_view "$@"
+  classify_pr "$PR_VIEW_JSON"
+}
+
+main "$@"
