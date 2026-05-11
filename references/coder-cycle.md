@@ -474,6 +474,52 @@ scheduler layer to skip-if-running, or set the polling interval
 conservatively. A worktree-level `.coding-flows.lock` is a candidate
 improvement that would enforce this directly at cycle start.
 
+## Common tool-call pitfalls
+
+Observed in session transcripts. None are skill bugs; all are agent
+discipline issues that show up as `is_error=true` in tool results.
+
+- **`File has not been read yet. Read it first before writing to it.`**
+  Claude Code requires every `Edit` / `Write` target to be `Read` first
+  in the same session. When you switch worktrees or grep finds a file
+  you haven't touched yet, **always `Read` before `Edit`**. This is a
+  Claude Code constraint, not enforceable from the skill.
+
+- **`No such file or directory` from `sed` / `ls` / `Read`** despite the
+  file existing. You're cd'd into the wrong checkout. With per-issue
+  worktrees, the main checkout (`<repo>/main/`) typically doesn't
+  contain the changed files for an in-flight PR; those live in
+  `<repo>/<branch-slug>/`. Before any file operation:
+  ```
+  cd "$(coding-flows-worktree-path <branch>)"
+  ```
+  Verify with `pwd` and `git rev-parse --abbrev-ref HEAD`. If you're
+  about to operate on PR #N's files, `head` should equal that PR's
+  branch.
+
+- **`coding-flows-worktree-create` says "worktree path already exists".**
+  You already have a worktree for that branch. Either resume into the
+  existing one (`cd "$(coding-flows-worktree-path <branch>)"`) or
+  remove the stale worktree first (`coding-flows-worktree-remove
+  <branch>`). The script refuses to overwrite, which is correct
+  behavior.
+
+- **`HTTP 504: Gateway Timeout (api.github.com/graphql)`** —
+  transient. Retry once. If it persists, log a `needs-human` with
+  reason `gh-api-degraded` and proceed with the next item.
+
+- **`Cancelled: parallel tool call ... errored`** — when batching tool
+  calls in one message, if any one Bash command errors, the harness
+  cancels the rest. Issue calls in smaller batches when one
+  legitimately may fail (e.g., `gh issue view` for issues that might
+  not exist).
+
+- **`failed to delete local branch ... used by worktree at ...`** is
+  a cosmetic warning from `gh pr merge --delete-branch` and is filtered
+  by `coding-flows-merge` — the branch IS deleted moments later by our
+  worktree cleanup. If you see this string in transcripts on an older
+  version of the skill, ignore it.
+
 ## Hard guardrails (Coder-specific)
 
 Inherited from SKILL.md, plus:

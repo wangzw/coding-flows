@@ -233,7 +233,22 @@ main() {
     args_merge+=("--delete-branch")
   fi
 
-  gh pr merge "$pr" "${args_merge[@]}"
+  # gh pr merge --delete-branch tries to delete the local branch immediately,
+  # but our _post_merge_cleanup hasn't run yet — the worktree still has the
+  # branch checked out, so git rejects the local delete and gh prints a
+  # warning like "failed to delete local branch <X>: ... used by worktree
+  # at ...". The branch IS deleted moments later by our worktree cleanup
+  # (which removes the worktree first, freeing the branch). Filter the
+  # cosmetic warning so it doesn't look like a real failure in transcripts.
+  local merge_out merge_rc=0
+  merge_out="$(gh pr merge "$pr" "${args_merge[@]}" 2>&1)" || merge_rc=$?
+  local filtered_out
+  filtered_out="$(printf '%s\n' "$merge_out" | grep -v 'failed to delete local branch' || true)"
+  [[ -n "$filtered_out" ]] && printf '%s\n' "$filtered_out"
+  if [[ $merge_rc -ne 0 ]]; then
+    log_error "gh pr merge failed (exit $merge_rc); full output: $merge_out"
+    return 69
+  fi
 
   # Enumerate every linked issue (a single PR can close multiple via
   # `Closes #A`, `Fixes #B`, `Resolves #C`). Post thanks + check off ACs
