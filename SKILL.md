@@ -289,11 +289,34 @@ classifier for **every** PR in the input list, every cycle.
 | **PR** (Reviewer cycle) | `idle-merge-ready`, `idle-coder-blocked` | `coding-flows-classify-pr-reviewer` |
 | **issue** (Coder cycle) | `wait-author`, `blocked-by-dep`, `out-of-scope` | local judgment |
 
-`wait-author` is an **issue-side** reason on the Coder cycle —
-clarification was asked, the `needs-human` label is on the issue, no
-new author response yet. It is **not** a PR state. A Reviewer cycle
-emitting `wait-author` for a PR is a bug: the Reviewer must call
-`coding-flows-classify-pr-reviewer` and use its enum.
+Issue-side `Skipped:` reasons — exact definitions:
+
+- `wait-author` — clarification was already asked, the `needs-human`
+  label is on the issue, no new author response yet. The Coder
+  re-checks on each cycle for a new author comment.
+- `blocked-by-dep` — issue concretely depends on another issue / PR
+  that has not yet merged or been resolved. Name the dependency in
+  the row (e.g. `blocked-by-dep #279 (allow-list pruning)`). NOT for
+  "I'd rather finish unrelated work first" — see anti-patterns below.
+- `out-of-scope` — issue is not for the Coder to do at all (e.g. spec
+  decision pending, requires human research, owned by another team).
+  Should be rare; once marked, expect it to stay marked across many
+  cycles. NOT for "deferring to next cycle".
+
+A Reviewer cycle emitting `wait-author` for a PR is a bug: the
+Reviewer must call `coding-flows-classify-pr-reviewer` and use its
+enum.
+
+**Anti-pattern — do not invent reasons to skip Stage 2.** Observed in
+a transcript: Coder finished PR work (PR now in `wait-ci`), then
+marked all 6 open issues `out-of-scope` with reason "PR-side backlog
+has priority while #258 still needs to land". This is incorrect: once
+every Stage 1 item is in a waiting state, Stage 2 MUST engage — that
+is the entire premise of the strict two-stage ordering. "PR is in CI"
+is the *trigger* for Stage 2, not a reason to defer it. If you find
+yourself writing temporary-sounding reasons after `out-of-scope` /
+`blocked-by-dep`, you are skipping Stage 2 with a fig leaf — pick the
+top-priority `start` issue and run Phase A1 → D instead.
 
 **"Needs human" has a precise meaning** — only items where the cycle
 triggered the [notification protocol](references/notification-protocol.md):
