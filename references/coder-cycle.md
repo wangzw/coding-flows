@@ -21,10 +21,15 @@ drives it to its **natural rotation point**:
 
 If an issue is complex and takes 20 minutes (or longer) to implement,
 test, validate, and open as a ready PR — **take 20 minutes**. Do not
-abandon the work because the scheduler will fire again in 5. The next
-cycle firing observes the lock-file (`.coding-flows.lock` in the
-worktree) and skips overlapping work; it picks up where the current
-cycle leaves off only after the current cycle exits.
+abandon the work because the scheduler will fire again in 5.
+
+**Overlapping cycle firings** are a scheduler-layer concern, not this
+skill's. Use a scheduler that handles overlap by skipping if a prior
+invocation is still running (`slock reminder` does this), or set the
+polling interval conservatively (10–15 min vs. 5 min) so overlap is
+unlikely. The skill does not currently take its own
+`.coding-flows.lock` file; the docs in `worktrees.md` mentioning one
+are aspirational, not implemented.
 
 In particular, **never push half-finished code or open a draft PR as a
 workaround for cycle-length anxiety**. The merge gates assume the
@@ -91,6 +96,7 @@ source.
 
 | State | Condition (PR) | Coder action |
 |-------|----------------|--------------|
+| `wip` | `isDraft: true` | Resume the worktree, finish whatever work the draft was created for, then `gh pr ready <PR>` to flip it to non-draft. Drafts are not a recommended pattern in this skill (the workflow expects fully-formed PRs per "No per-cycle time budget" above); this state exists to handle pre-existing or externally-created drafts gracefully. |
 | `address-changes` | Most recent reviewer review is `CHANGES_REQUESTED` and not superseded by a later same-author `/lgtm` | Phase E |
 | `address-ci-fail` | `statusCheckRollup` contains a `FAILURE`/`ERROR`/`CANCELLED` | Phase E (fix-and-push) |
 | `ready-to-merge` | CI green + current LGTM bound to head; confirm with `coding-flows-merge --dry-run` before merging (other gates may fail) | Phase F |
@@ -98,8 +104,8 @@ source.
 | `wait-review` | CI green, no `/lgtm` marker at all | **skip** |
 | `wait-lgtm-fresh` | CI green, `/lgtm` exists but bound to older head SHA (Coder pushed since) | **skip** |
 
-State precedence (when multiple conditions apply): `address-changes` >
-`address-ci-fail` > `wait-ci` > (LGTM-derived state).
+State precedence (when multiple conditions apply): `wip` > `address-changes`
+> `address-ci-fail` > `wait-ci` > (LGTM-derived state).
 
 **Advisory comments are not states.** A Reviewer review submitted with
 `gh pr review --comment` (not `--request-changes`) does not put the PR
@@ -192,15 +198,25 @@ For each `start` or `clarify` issue, before opening a worktree:
      has progressed to `responded`. Only then re-enter Phase A1; otherwise
      remain parked.
 
-**`size_estimate=large` is not a reason to defer.** A large issue is one
-the Coder can plan in this cycle but should expect to need significant
-implementation time within the SAME cycle. The scheduler's polling
-interval is not a budget — see "No per-cycle time budget" above. Defer
-only when an issue is genuinely *ambiguous* (`ac_clear=no/partial`,
-`test_path_clear=needs-design`) or *unsafe to start unilaterally*
-(`high_risk_paths=true` without explicit operator sign-off). Wall-clock
-time alone is never the reason; the Coder takes the time the issue
-needs.
+**Wall-clock time alone is not a reason to defer.** The scheduler's
+polling interval is not a budget — see "No per-cycle time budget" above.
+Defer only when an issue is:
+
+- **Ambiguous** (`ac_clear=no/partial`, `test_path_clear=needs-design`):
+  can't safely start until clarified.
+- **Unsafe to start unilaterally** (`high_risk_paths=true`): needs
+  operator sign-off via `needs-human`.
+- **Genuinely unbounded** (`size_estimate=large` AND the agent's honest
+  judgment is that even a focused multi-hour session can't reach a
+  reviewable PR — e.g. a cross-cutting refactor touching dozens of
+  files across multiple subsystems): trigger `scope-too-large`. Ask
+  the human to split the issue.
+
+Note that `size_estimate=large` by itself is not a deferral reason —
+plenty of "large" issues (1000–3000 lines of focused work in one area)
+are within reach of a single sustained cycle. Reserve `scope-too-large`
+for cases where splitting is the right architectural call, not a way
+to dodge focused work.
 
 ## Phase A2 — Bootstrap the Coder plan + worktree
 
@@ -399,9 +415,10 @@ two `/loop` invocations overlap), the second cycle should:
 - Still allow itself to act on **different** PRs / issues whose worktrees
   it doesn't share.
 
-Locking is best-effort via the worktree directory: a `.coding-flows.lock` file
-inside the worktree marks "in use". Stale locks (older than 30 min) are
-ignored. Lock writer: `flock(1)` with a non-blocking `-n` flag.
+The skill itself does not currently enforce this — rely on the
+scheduler layer to skip-if-running, or set the polling interval
+conservatively. A worktree-level `.coding-flows.lock` is a candidate
+improvement that would enforce this directly at cycle start.
 
 ## Hard guardrails (Coder-specific)
 

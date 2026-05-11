@@ -145,9 +145,12 @@ within itself (one build/test at a time), and the rotation logic in
 without needing a parallelism limit.
 
 If two cycle invocations overlap (e.g. a `slock reminder` fires while a
-prior `/loop` tick is still running), each cycle's actions on a given
-branch are guarded by a `.coding-flows.lock` file inside the worktree (best
-effort; stale locks older than 30 min are ignored).
+prior `/loop` tick is still running), the skill itself does **not**
+currently arbitrate. Rely on the scheduler layer to skip-if-running
+(`slock reminder` does this for the same reminder id), or set the
+polling interval conservatively (10–15 min) so overlap is unlikely.
+Adding a `.coding-flows.lock` file at the cycle level is a candidate
+improvement.
 
 ## Pre-flight semantics with worktrees
 
