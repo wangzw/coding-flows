@@ -82,6 +82,44 @@ rm -f "$TMP_FIX"
 "$MERGE" --from-file "$FIX/merge-changes-superseded.json" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "changes-superseded: exit 0" 0 "$rc"
 
+# Gate 12 — issue↔PR AC parity. Attach a linked issue with MORE AC items
+# than the PR body claims → exit 22.
+TMP_FIX="$(mktemp)"
+jq '. + {
+  linkedIssues: [{
+    number: 999,
+    body: "## Acceptance criteria\n\n- [ ] item one\n- [ ] item two\n- [ ] item three\n- [ ] item four (dropped by Coder)\n"
+  }]
+}' "$FIX/coverage-complete.json" > "$TMP_FIX"
+"$MERGE" --from-file "$TMP_FIX" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "issue-ac-parity-violation: exit 22" 22 "$rc"
+rm -f "$TMP_FIX"
+
+# Gate 12 multi-issue: PR claims 2 ACs, two linked issues with 2 + 1 items
+# (3 > 2) → exit 22.
+TMP_FIX="$(mktemp)"
+jq '. + {
+  linkedIssues: [
+    {number: 100, body: "## Acceptance criteria\n\n- [ ] one\n- [ ] two\n"},
+    {number: 101, body: "## Acceptance criteria\n\n- [ ] only one\n"}
+  ]
+}' "$FIX/coverage-complete.json" > "$TMP_FIX"
+"$MERGE" --from-file "$TMP_FIX" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "issue-ac-parity-multi: exit 22" 22 "$rc"
+rm -f "$TMP_FIX"
+
+# Gate 12: coverage-complete with a properly-sized linked issue → exit 0.
+TMP_FIX="$(mktemp)"
+jq '. + {
+  linkedIssues: [{
+    number: 999,
+    body: "## Acceptance criteria\n\n- [ ] one\n- [ ] two\n"
+  }]
+}' "$FIX/coverage-complete.json" > "$TMP_FIX"
+"$MERGE" --from-file "$TMP_FIX" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "issue-ac-parity-ok: exit 0" 0 "$rc"
+rm -f "$TMP_FIX"
+
 # Test 12: configured method 'squash' but repo allows only rebase → exit 17
 CODING_FLOWS_REPO_ALLOWS="rebase" "$MERGE" --from-file "$FIX/coverage-complete.json" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "method-disallowed: exit 17" 17 "$rc"

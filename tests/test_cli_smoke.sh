@@ -82,6 +82,68 @@ assert_exit_code "label-risk auth-touched: exit 0" 0 "$rc"
 assert_contains  "label-risk auth-touched: high-risk:auth" "high-risk:auth" "$out"
 rm -f "$TMP"
 
+# --- coding-flows-verify-issue-ac --------------------------------------
+# Multi-issue fixture: PR body has 2 AC rows, two linked issues with 3 + 1
+# AC items respectively (4 total > 2) → Gate 12 fails.
+TMP="$(mktemp)"
+jq -n '
+  {number: 99, headRefOid: "h",
+   body: "## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T | c.go:1 | abc |\n| AC-2 | y | t.go:T | c.go:2 | abc |\n",
+   commits: [{oid: "abc"}],
+   files: [],
+   linkedIssues: [
+     {number: 100, body: "## Acceptance criteria\n\n- [ ] one\n- [ ] two\n- [ ] three\n"},
+     {number: 101, body: "## Acceptance criteria\n\n- [ ] solo\n"}
+   ]}
+' > "$TMP"
+"$SCRIPTS/coding-flows-verify-issue-ac" --from-file "$TMP" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "verify-issue-ac multi-issue drop: exit 1" 1 "$rc"
+out="$("$SCRIPTS/coding-flows-verify-issue-ac" --from-file "$TMP" 2>/dev/null)"
+assert_contains "verify-issue-ac multi: ISSUE_AC_COUNT=4" "ISSUE_AC_COUNT=4" "$out"
+assert_contains "verify-issue-ac multi: PR_AC_COUNT=2"    "PR_AC_COUNT=2"    "$out"
+assert_contains "verify-issue-ac multi: ISSUE_COUNT=2"    "ISSUE_COUNT=2"    "$out"
+rm -f "$TMP"
+
+# Single-issue parity OK → exit 0
+TMP="$(mktemp)"
+jq -n '
+  {number: 99, headRefOid: "h",
+   body: "## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T | c.go:1 | abc |\n| AC-2 | y | t.go:T | c.go:2 | abc |\n",
+   commits: [{oid: "abc"}], files: [],
+   linkedIssues: [{number: 5, body: "## Acceptance criteria\n\n- [ ] one\n- [ ] two\n"}]}
+' > "$TMP"
+"$SCRIPTS/coding-flows-verify-issue-ac" --from-file "$TMP" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "verify-issue-ac single-issue parity: exit 0" 0 "$rc"
+rm -f "$TMP"
+
+# Missing linkedIssues → skipped (warn) but exit 0
+TMP="$(mktemp)"
+jq '. + {body: "## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T | c.go:1 | abc |\n"}' "$FIX/no-lgtm.json" > "$TMP"
+"$SCRIPTS/coding-flows-verify-issue-ac" --from-file "$TMP" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "verify-issue-ac no-linked-issues: exit 0 (skipped)" 0 "$rc"
+out="$("$SCRIPTS/coding-flows-verify-issue-ac" --from-file "$TMP" 2>/dev/null)"
+assert_contains "verify-issue-ac no-linked: marker" "ISSUE_AC_COUNT=skipped" "$out"
+rm -f "$TMP"
+
+# --- coding-flows-show-coverage with multi-issue --------------------------
+TMP="$(mktemp)"
+jq -n '
+  {number: 99, headRefOid: "h",
+   body: "## Summary\n\nCloses #100. Fixes #101.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | from A | t.go:T | c.go:1 | abc |\n| AC-2 | from B | t.go:T | c.go:2 | abc |\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+   commits: [{oid: "abc"}], files: [],
+   linkedIssues: [
+     {number: 100, body: "## Acceptance criteria\n\n- [ ] A-one\n- [ ] A-two\n"},
+     {number: 101, body: "## Acceptance criteria\n\n- [ ] B-solo\n"}
+   ]}
+' > "$TMP"
+out="$("$SCRIPTS/coding-flows-show-coverage" --from-file "$TMP" 2>/dev/null)"
+assert_contains "show-coverage multi: issue #100 header" "Issue #100" "$out"
+assert_contains "show-coverage multi: issue #101 header" "Issue #101" "$out"
+assert_contains "show-coverage multi: A-one item"        "A-one"      "$out"
+assert_contains "show-coverage multi: B-solo item"       "B-solo"     "$out"
+assert_contains "show-coverage multi: review hint"       "NOT just the PR body table" "$out"
+rm -f "$TMP"
+
 # --- coding-flows-fetch-for-reviewer ----------------------------------------
 out="$("$SCRIPTS/coding-flows-fetch-for-reviewer" --from-file "$FIX/lgtm-dual.json" --reviewer r1 2>/dev/null)"
 rc=$?

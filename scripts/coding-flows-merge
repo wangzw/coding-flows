@@ -31,6 +31,8 @@ source "$SCRIPT_DIR/lib/verify-scope-envelope.sh"
 source "$SCRIPT_DIR/lib/verify-test-plan.sh"
 # shellcheck source=lib/verify-issue-ac.sh
 source "$SCRIPT_DIR/lib/verify-issue-ac.sh"
+# shellcheck source=lib/issue-ac-checkoff.sh
+source "$SCRIPT_DIR/lib/issue-ac-checkoff.sh"
 # shellcheck source=lib/verify-lgtm-coverage.sh
 source "$SCRIPT_DIR/lib/verify-lgtm-coverage.sh"
 # shellcheck source=lib/worktree.sh
@@ -107,9 +109,9 @@ main() {
 
   # Gate 11 — Test plan: no unchecked `- [ ]` items in the `## Test plan`
   # section. Coder either checks them after manual verification or removes
-  # the items entirely.
-  if ! verify_test_plan "$body" >/dev/null 2>&1; then
-    verify_test_plan "$body" >/dev/null  # re-run to surface stderr
+  # the items entirely. (stdout redirected to /dev/null but stderr stays
+  # visible so the user sees the offending bullets.)
+  if ! verify_test_plan "$body" >/dev/null; then
     log_error "Gate 11 (test-plan-incomplete)"
     return $EC_TEST_PLAN
   fi
@@ -118,9 +120,8 @@ main() {
   # least as many rows as the linked issue's `## Acceptance criteria`
   # checklist declares. Skipped (with warning) if no linkedIssueBody is
   # available (test fixtures without it, or live mode where gh issue
-  # view failed).
-  if ! verify_issue_ac "$PR_VIEW_JSON" >/dev/null 2>&1; then
-    verify_issue_ac "$PR_VIEW_JSON" >/dev/null  # re-run to surface stderr
+  # view failed). stderr stays visible.
+  if ! verify_issue_ac "$PR_VIEW_JSON" >/dev/null; then
     log_error "Gate 12 (issue-ac-parity-violation)"
     return $EC_ISSUE_AC_PARITY
   fi
@@ -278,29 +279,10 @@ _check_off_issue_acs() {
     return 1
   fi
 
-  # Use awk to flip `- [ ]` → `- [x]` only inside the AC section.
+  # Flip `- [ ]` → `- [x]` only inside the AC section (pure function in
+  # scripts/lib/issue-ac-checkoff.sh).
   local updated
-  updated="$(awk '
-    BEGIN { in_sec=0 }
-    /^##[[:space:]]/ {
-      lc = tolower($0)
-      if (lc ~ /^## *(acceptance[[:space:]]+criteria|acs|requirements)([^[:alnum:]_]|$)/) {
-        in_sec=1; print; next
-      }
-      if (in_sec) { in_sec=0 }
-    }
-    {
-      if (in_sec) {
-        # Replace `- [ ]` / `* [ ]` (with any leading whitespace) by the
-        # checked form. Be careful to only touch bullet checkboxes,
-        # not arbitrary `[ ]` in prose.
-        if ($0 ~ /^[[:space:]]*[-*][[:space:]]+\[ \]/) {
-          sub(/\[ \]/, "[x]")
-        }
-      }
-      print
-    }
-  ' <<<"$current")"
+  updated="$(check_off_ac_items "$current")"
 
   if [[ "$current" == "$updated" ]]; then
     log_info "issue #$issue: no `- [ ]` AC items to update"
