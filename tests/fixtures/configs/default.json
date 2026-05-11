@@ -1,0 +1,38 @@
+{
+  "acting_user": "testuser",
+  "merge": {"method": "squash", "delete_branch": true},
+  "ac_mapping": {"required": true},
+  "lgtm_coverage": {"required": true},
+  "scope_rules": [
+    {
+      "paths": ["backend/**", "**/*.go"],
+      "skills": ["backend-coding-standards"]
+    },
+    {
+      "paths": ["frontend/**", "**/*.tsx"],
+      "skills": ["frontend-coding-standards"]
+    }
+  ],
+  "invariants": [
+    {
+      "id": "events-before-publish",
+      "rule": "every nats.Publish must be preceded by eventstore write",
+      "triggered_by_paths": ["**/eventstore/**", "**/messaging/**"]
+    },
+    {
+      "id": "no-secrets-in-logs",
+      "rule": "log fields must not include api keys or tokens",
+      "triggered_by_paths": ["**/*.go"]
+    }
+  ],
+  "high_risk_rules": [
+    {"paths": ["**/auth/**"], "label": "high-risk:auth"},
+    {"paths": ["**/migrations/**"], "label": "high-risk:migration"},
+    {"size": {"lines_changed": 1000}, "label": "high-risk:large"},
+    {
+      "paths": ["**/billing/**"],
+      "exclude_labels": ["dependencies"],
+      "label": "high-risk:billing"
+    }
+  ]
+}

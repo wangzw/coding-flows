@@ -1,0 +1,42 @@
+{
+  "number": 4,
+  "headRefOid": "headDual03",
+  "body": "Resolves #40.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T1 | a.go:1 | abc1 |\n| AC-2 | y | t.go:T2 | a.go:2 | abc1 |\n\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T11:00:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=headDual03 reviewer=r1 acs=AC-1 invariants= -->\nVerified AC-1."
+    },
+    {
+      "createdAt": "2025-05-11T11:30:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=headDual03 reviewer=r2 acs=AC-2 invariants= -->\nVerified AC-2."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "abc1aaaaaa"
+    },
+    {
+      "oid": "headDual03"
+    }
+  ],
+  "files": [
+    {
+      "path": "docs/auth-flow.md",
+      "additions": 50,
+      "deletions": 5
+    }
+  ],
+  "labels": [
+    {
+      "name": "high-risk:auth"
+    }
+  ],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": []
+}

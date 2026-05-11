@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# coding-flows-verify-scope-envelope <PR> | --from-file <pr-view-json>
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/verify-ac-mapping.sh
+source "$SCRIPT_DIR/lib/verify-ac-mapping.sh"
+# shellcheck source=lib/verify-scope-envelope.sh
+source "$SCRIPT_DIR/lib/verify-scope-envelope.sh"
+
+main() {
+  load_pr_view "$@"
+  verify_scope_envelope "$PR_VIEW_JSON"
+}
+
+main "$@"

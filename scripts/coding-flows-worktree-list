@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# coding-flows-worktree-list — emit one line per managed worktree:
+#   <abs-path>\t<branch>\t<head-sha>
+# Only worktrees under $(worktree_root) are listed; user's manual worktrees
+# are filtered out.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/worktree.sh
+source "$SCRIPT_DIR/lib/worktree.sh"
+
+worktree_list

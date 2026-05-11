@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# coding-flows-clarification-status <issue#> | --from-file <issue-view-json>
+#
+# Emit the clarification status of an issue (whether the Coder has asked,
+# whether the author responded, etc.).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/clarification-status.sh
+source "$SCRIPT_DIR/lib/clarification-status.sh"
+
+usage() {
+  echo "Usage: coding-flows-clarification-status <issue#> | --from-file <path>" >&2
+  exit 64
+}
+
+main() {
+  local from_file="" issue=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --from-file) from_file="$2"; shift 2 ;;
+      [0-9]*) issue="$1"; shift ;;
+      -h|--help) usage ;;
+      *) usage ;;
+    esac
+  done
+
+  local json
+  if [[ -n "$from_file" ]]; then
+    [[ -f "$from_file" ]] || { log_error "no such file: $from_file"; exit 64; }
+    json="$(cat "$from_file")"
+  elif [[ -n "$issue" ]]; then
+    json="$(gh issue view "$issue" --json number,author,body,labels,comments 2>&1)" || {
+      log_error "gh issue view failed: $json"
+      exit 69
+    }
+  else
+    usage
+  fi
+
+  clarification_status "$json"
+}
+
+main "$@"

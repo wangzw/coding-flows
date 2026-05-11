@@ -1,0 +1,22 @@
+{
+  "_note": "This is a LOCAL working artifact at $CODING_FLOWS_CACHE_DIR/<owner>/<repo>/pr-<N>/reviewer-<id>/plan-vN.json. Do not paste it into the PR. The PR receives only the /lgtm coverage marker or a --request-changes review body — see references/review-plan.md and references/pr-comment-format.md.",
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "text": "<copy AC text from linked issue>",
+      "verdict": "",
+      "evidence": ""
+    }
+  ],
+  "invariants": [
+    {
+      "id": "<kebab-case-rule-id>",
+      "rule": "<one-line rule statement copied from standards doc>",
+      "verdict": "",
+      "evidence": ""
+    }
+  ],
+  "files_audited": [
+    {"path": "<path/in/diff>", "standards": ["<skill-or-doc-id>"]}
+  ]
+}

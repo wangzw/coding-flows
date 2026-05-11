@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# coding-flows-verify-risks <PR> | --from-file <pr-view-json>
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/verify-risks.sh
+source "$SCRIPT_DIR/lib/verify-risks.sh"
+
+main() {
+  load_pr_view "$@"
+  local body
+  body="$(jq -r '.body // ""' <<<"$PR_VIEW_JSON")"
+  verify_risks "$body"
+}
+
+main "$@"

@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# coding-flows-coder-plan <subcommand> [args...]
+#
+# Manage the Coder's local working plan:
+#
+#   coding-flows-coder-plan init <branch> <issue-number> [--issue-file <path>]
+#       Bootstrap plan-v1.json from issue body. By default fetches the issue
+#       via `gh issue view`; pass --issue-file for tests / offline use.
+#       Also queries `coding-flows-detect-scope` for triggered invariants.
+#
+#   coding-flows-coder-plan path <branch>
+#       Echo the path to the latest plan version (or what it would be).
+#
+#   coding-flows-coder-plan render <branch>
+#       Emit Markdown segments (AC mapping table, Support files, Risks +
+#       markers) for inclusion in the PR body.
+#
+#   coding-flows-coder-plan validate <branch>
+#       Sanity-check the plan before pushing. Returns non-zero on blockers.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/worktree.sh
+source "$SCRIPT_DIR/lib/worktree.sh"
+# shellcheck source=lib/detect-scope.sh
+source "$SCRIPT_DIR/lib/detect-scope.sh"
+# shellcheck source=lib/coder-plan.sh
+source "$SCRIPT_DIR/lib/coder-plan.sh"
+
+usage() {
+  cat <<'EOF' >&2
+Usage:
+  coding-flows-coder-plan init <branch> <issue> [--issue-file <path>] [--files-file <path>]
+  coding-flows-coder-plan path <branch>
+  coding-flows-coder-plan render <branch>
+  coding-flows-coder-plan validate <branch>
+EOF
+  exit 64
+}
+
+cmd="${1:-}"
+[[ -z "$cmd" ]] && usage
+shift
+
+case "$cmd" in
+  init)
+    branch="${1:-}"; issue="${2:-}"; shift 2 || usage
+    issue_file=""
+    files_file=""
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --issue-file) issue_file="$2"; shift 2 ;;
+        --files-file) files_file="$2"; shift 2 ;;
+        *) usage ;;
+      esac
+    done
+    [[ -z "$branch" || -z "$issue" ]] && usage
+
+    if [[ -n "$issue_file" ]]; then
+      issue_json="$(cat "$issue_file")"
+    else
+      issue_json="$(gh issue view "$issue" --json body,title 2>/dev/null || echo '{}')"
+    fi
+
+    if [[ -n "$files_file" ]]; then
+      triggered="$(triggered_invariants "$(cat "$files_file")" | paste -sd, -)"
+    else
+      # Best-effort: derive triggered invariants from the working tree's
+      # diff against origin's default base.
+      local_base="$(_default_base_branch 2>/dev/null || echo main)"
+      changed="$(git diff --name-only "origin/$local_base"...HEAD 2>/dev/null || true)"
+      triggered="$(triggered_invariants "$changed" | paste -sd, -)"
+    fi
+
+    coder_plan_init "$branch" "$issue" "$issue_json" "$triggered"
+    ;;
+
+  path)
+    branch="${1:-}"
+    [[ -z "$branch" ]] && usage
+    coder_plan_latest_path "$branch"
+    ;;
+
+  render)
+    branch="${1:-}"
+    [[ -z "$branch" ]] && usage
+    coder_plan_render "$(coder_plan_latest_path "$branch")"
+    ;;
+
+  validate)
+    branch="${1:-}"
+    [[ -z "$branch" ]] && usage
+    coder_plan_validate "$(coder_plan_latest_path "$branch")"
+    ;;
+
+  *)
+    usage
+    ;;
+esac

@@ -1,0 +1,31 @@
+{
+  "number": 1,
+  "headRefOid": "abc123def456",
+  "body": "## Summary\n\nClose #10.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | thing | foo_test.go:T | foo.go:1 | abc1234 |\n\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T10:00:00Z",
+      "body": "Looks interesting, will review later"
+    }
+  ],
+  "commits": [
+    {
+      "oid": "abc123def456"
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/foo.go",
+      "additions": 10,
+      "deletions": 2
+    }
+  ],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": []
+}

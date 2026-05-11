@@ -1,0 +1,35 @@
+{
+  "number": 2,
+  "headRefOid": "head0001sha",
+  "body": "## Summary\n\nFixes #20.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | thing | foo_test.go:T | foo.go:1 | abc1234 |\n\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T09:00:00Z",
+      "body": "early note"
+    },
+    {
+      "createdAt": "2025-05-11T10:00:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=head0001sha reviewer=r1 acs=AC-1 invariants= -->\nVerified AC-1 against foo_test.go."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "head0001sha"
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/foo.go",
+      "additions": 10,
+      "deletions": 2
+    }
+  ],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": []
+}

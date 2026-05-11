@@ -1,0 +1,2 @@
+frontend/src/pages/foo/Foo.tsx
+frontend/src/pages/foo/foo.test.tsx

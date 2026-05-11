@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# coding-flows-worktree-sync [<branch>]
+#
+# Rebase the named branch (or the current branch, if no arg) onto its
+# upstream base. Run from inside the target worktree. Useful between cycles
+# when the Coder is waiting on CI and wants the worktree up-to-date with
+# main before the next round of changes.
+#
+# Safe: refuses to rebase if there are uncommitted changes. Use
+# `git stash` first if you need to.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/worktree.sh
+source "$SCRIPT_DIR/lib/worktree.sh"
+
+branch="${1:-}"
+if [[ -z "$branch" ]]; then
+  branch="$(git rev-parse --abbrev-ref HEAD)"
+fi
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  log_error "working tree has uncommitted changes; commit or stash first"
+  exit 1
+fi
+
+base="$(_default_base_branch)" || base="main"
+log_info "syncing $branch onto origin/$base"
+git fetch origin "$base" >/dev/null 2>&1 || {
+  log_warn "git fetch origin $base failed; rebase will use local copy"
+}
+git rebase "origin/$base"

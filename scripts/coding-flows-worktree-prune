@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# coding-flows-worktree-prune
+#
+# Scan managed worktrees; for every one whose branch's PR is MERGED or
+# CLOSED, remove it (with --force, since the branch is upstream-gone).
+# Branches without a PR (in-progress work) are left alone.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/worktree.sh
+source "$SCRIPT_DIR/lib/worktree.sh"
+
+worktree_prune

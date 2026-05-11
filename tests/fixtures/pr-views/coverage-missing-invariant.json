@@ -1,0 +1,39 @@
+{
+  "number": 12,
+  "headRefOid": "covMissInv12",
+  "body": "## Summary\n\nClose #120.\n\n## AC mapping\n\n| AC   | Description | Test                                       | Code                                         | Commit  |\n|------|-------------|--------------------------------------------|----------------------------------------------|---------|\n| AC-1 | x           | backend/internal/eventstore/store.go:T1    | backend/internal/eventstore/store.go:1       | cc1     |\n\n## Support files\n\n- backend/internal/messaging/publish.go — touched as side-effect of eventstore update\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T15:00:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=covMissInv12 reviewer=r1 acs=AC-1 invariants= -->\nVerified AC-1 but forgot to check events-before-publish."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "cc1ddddddd"
+    },
+    {
+      "oid": "covMissInv12"
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/internal/eventstore/store.go",
+      "additions": 10,
+      "deletions": 2
+    },
+    {
+      "path": "backend/internal/messaging/publish.go",
+      "additions": 5,
+      "deletions": 1
+    }
+  ],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": []
+}

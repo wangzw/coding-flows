@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# coding-flows-label-risk <PR> [--dry-run]
+# coding-flows-label-risk --from-file <pr-view-json> [--dry-run]
+#
+# Applies labels per .coding-flows.json `high_risk_rules`. With --dry-run, prints
+# labels that would be applied without modifying the PR (this is what the
+# test suite uses).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/label-risk.sh
+source "$SCRIPT_DIR/lib/label-risk.sh"
+
+main() {
+  local dry_run=0 pr=""
+  local args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run) dry_run=1; shift ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+
+  load_pr_view "${args[@]}"
+
+  local files total labels
+  files="$(extract_changed_files "$PR_VIEW_JSON")"
+  total="$(extract_total_lines "$PR_VIEW_JSON")"
+  labels="$(extract_labels "$PR_VIEW_JSON")"
+
+  local triggered
+  triggered="$(detect_high_risk_labels "$files" "$total" "$labels")"
+
+  if [[ -z "$triggered" ]]; then
+    return 0
+  fi
+
+  if [[ $dry_run -eq 1 ]]; then
+    printf '%s\n' "$triggered"
+    return 0
+  fi
+
+  # Apply labels via gh. PR number must be set.
+  pr="$(jq -r '.number // empty' <<<"$PR_VIEW_JSON")"
+  if [[ -z "$pr" ]]; then
+    log_error "label-risk: PR number not available; cannot apply labels"
+    return 64
+  fi
+
+  local lbl
+  local failed=0
+  while IFS= read -r lbl; do
+    [[ -z "$lbl" ]] && continue
+    log_info "applying label: $lbl"
+    if ! gh pr edit "$pr" --add-label "$lbl" >/dev/null 2>&1; then
+      log_warn "could not apply label '$lbl' (does it exist on the repo?)"
+      failed=$((failed + 1))
+    fi
+  done <<< "$triggered"
+
+  printf '%s\n' "$triggered"
+  if [[ $failed -gt 0 ]]; then
+    return 1
+  fi
+}
+
+main "$@"

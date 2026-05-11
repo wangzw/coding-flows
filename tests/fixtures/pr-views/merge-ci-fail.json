@@ -1,0 +1,39 @@
+{
+  "number": 21,
+  "headRefOid": "ciFail21",
+  "body": "Closes #210.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T | a.go:1 | dd1 |\n\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T17:00:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=ciFail21 reviewer=r1 acs=AC-1 invariants= -->\nfine."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "dd1eeeeeeee"
+    },
+    {
+      "oid": "ciFail21"
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "additions": 1,
+      "deletions": 0
+    }
+  ],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "lint",
+      "state": "SUCCESS"
+    },
+    {
+      "name": "unit",
+      "state": "COMPLETED",
+      "conclusion": "FAILURE"
+    }
+  ],
+  "reviews": []
+}

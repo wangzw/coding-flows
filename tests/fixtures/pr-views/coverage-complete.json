@@ -1,0 +1,34 @@
+{
+  "number": 10,
+  "headRefOid": "covFull10",
+  "body": "## Summary\n\nClose #100.\n\n## AC mapping\n\n| AC   | Description | Test                | Code              | Commit  |\n|------|-------------|---------------------|-------------------|---------|\n| AC-1 | x           | backend/handler.go:T1 | backend/handler.go:1 | aa1     |\n| AC-2 | y           | backend/handler.go:T2 | backend/handler.go:2 | aa1     |\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T13:00:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=covFull10 reviewer=r1 acs=AC-1,AC-2 invariants=no-secrets-in-logs -->\nVerified AC-1 and AC-2; no secrets logged in the new handlers."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "aa1bbbbbbb"
+    },
+    {
+      "oid": "covFull10cc"
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/handler.go",
+      "additions": 30,
+      "deletions": 5
+    }
+  ],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": []
+}

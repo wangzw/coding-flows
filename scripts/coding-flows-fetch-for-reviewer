@@ -1,0 +1,47 @@
+#!/usr/bin/env bash
+# coding-flows-fetch-for-reviewer <PR> --reviewer <id>
+# coding-flows-fetch-for-reviewer --from-file <pr-view-json> --reviewer <id>
+#
+# Emits a filtered PR view JSON suitable for piping into another coding-flows
+# script. Used by the dual-reviewer dispatch flow to make reviewer-2 blind
+# to reviewer-1's /lgtm marker.
+#
+# Limitations: see scripts/lib/filter-reviewer.sh; reviews bodies are not
+# filtered.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/filter-reviewer.sh
+source "$SCRIPT_DIR/lib/filter-reviewer.sh"
+
+usage() {
+  cat <<'EOF' >&2
+Usage:
+  coding-flows-fetch-for-reviewer <PR> --reviewer <id>
+  coding-flows-fetch-for-reviewer --from-file <path> --reviewer <id>
+EOF
+  exit 64
+}
+
+main() {
+  local reviewer="" args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --reviewer) reviewer="$2"; shift 2 ;;
+      -h|--help)  usage ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+
+  if [[ -z "$reviewer" ]]; then
+    log_error "missing --reviewer <id>"
+    usage
+  fi
+
+  load_pr_view "${args[@]}"
+  filter_pr_view_for_reviewer "$PR_VIEW_JSON" "$reviewer"
+}
+
+main "$@"

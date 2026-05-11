@@ -1,0 +1,52 @@
+{
+  "number": 23,
+  "headRefOid": "supSed23",
+  "body": "Closes #230.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T | c.go:1 | ff1aaaa |\n\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T20:00:00Z",
+      "author": {
+        "login": "rxer"
+      },
+      "body": "Some inline note."
+    },
+    {
+      "createdAt": "2025-05-11T21:30:00Z",
+      "author": {
+        "login": "rxer"
+      },
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=supSed23 reviewer=r1 acs=AC-1 invariants= -->\nLooks good after fix."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "ff1aaaa0000"
+    },
+    {
+      "oid": "supSed23"
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "additions": 1,
+      "deletions": 0
+    }
+  ],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": [
+    {
+      "author": {
+        "login": "rxer"
+      },
+      "state": "CHANGES_REQUESTED",
+      "submittedAt": "2025-05-11T20:30:00Z"
+    }
+  ]
+}

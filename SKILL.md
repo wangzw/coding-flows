@@ -1,0 +1,236 @@
+---
+name: coding-flows
+description: |
+  Two-role GitHub workflow for the repo of the current working directory. A Coder
+  agent fixes issues and opens PRs; a Reviewer agent reviews PRs until they meet
+  the merge bar. One invocation = one polling cycle (issues + PRs assigned to the
+  configured user). Wrap with `slock reminder` or `/loop` for continuous monitoring.
+
+  TRIGGER when the user asks for a coder or reviewer pass on the current repo,
+  e.g. "do a coder cycle on this repo", "run coding-flows as coder", "review my open PRs",
+  "run coding-flows as reviewer", "monitor github tasks here". Also triggered from a
+  wrapping `/loop` invocation or scheduled `slock reminder`.
+
+  SKIP when: cwd is not a git repo with a github.com remote; the user is asking
+  general `gh` CLI questions; or the user wants ad-hoc review of one specific PR
+  (use direct `gh` commands instead).
+---
+
+# coding-flows — Coder / Reviewer cycle
+
+Paired-agent GitHub workflow for a single repo. **One invocation = one cycle**
+for one role. Long-running monitoring is handled by the wrapping scheduler
+(`slock reminder` or `/loop`), not by this skill staying alive.
+
+## Quick start
+
+```
+role=coder       # turn issues into PRs and merge approved PRs
+role=reviewer    # review open PRs until they meet merge bar
+```
+
+The caller MUST specify the role. If not specified, **stop and ask**.
+
+## Per-repo configuration
+
+The skill reads `.coding-flows.json` from the repo root. It controls: acting user,
+merge method, scope rules (which standards apply to which paths), high-risk
+label rules, AC-mapping / LGTM-coverage requirements, and flaky-test policy.
+If the file is absent, sensible defaults apply (LGTM coverage and AC mapping
+stay required — those are core invariants).
+
+- Schema: **[references/config-schema.md](references/config-schema.md)**
+- Example: **[examples/coding-flows.example.json](examples/coding-flows.example.json)**
+
+## Pre-flight (every cycle)
+
+1. `gh auth status` — must match `acting_user` from `.coding-flows.json` (or current
+   authenticated user if no config). On mismatch, abort with `auth-broken`.
+2. cwd is inside a GitHub repo: `git rev-parse --show-toplevel` + `gh repo view`.
+   Worktree cwds are valid — `find_repo_config` falls back to the main repo via
+   `git rev-parse --git-common-dir`.
+3. **Main-checkout `git status` is no longer pre-flight-blocking.** Per-issue
+   work happens in worktrees; the main checkout's state is independent.
+   Per-worktree state is checked per-item in Coder Phase B / E.
+4. Coder only: `scripts/coding-flows-worktree-prune` — retire worktrees whose PRs
+   have merged or closed since the last cycle (best-effort).
+5. Read project conventions: `CLAUDE.md` / `AGENTS.md`, `commitlint.config.*`,
+   `.github/PULL_REQUEST_TEMPLATE.md`, `.github/CODEOWNERS`, build commands
+   from `Makefile` / `package.json` / `pyproject.toml`.
+6. **Mandatory scope detection.** Run `scripts/coding-flows-detect-scope` against
+   the diff (Coder: working branch; Reviewer: target PR). It enumerates which
+   coding-standards skills + invariant docs apply per `.coding-flows.json`
+   `scope_rules`. **Read each one into context before Phase B/C.** This closes
+   the "invariant never loaded" failure mode.
+
+## Cycles
+
+- **Coder** — see **[references/coder-cycle.md](references/coder-cycle.md)**.
+  Per-issue **worktree** isolation (`~/.cache/coding-flows/<owner>/<repo>/worktrees/`);
+  see [references/worktrees.md](references/worktrees.md). Within one cycle
+  the Coder is serial (one build/test at a time) but multi-task: when an item
+  hands off to CI or Reviewer, the cycle rotates to the next actionable item
+  rather than blocking. Iteration frequency comes from the wrapping scheduler
+  (`slock reminder` / `/loop`), not from this skill.
+- **Reviewer** — see **[references/reviewer-cycle.md](references/reviewer-cycle.md)**.
+  Default-deny adversarial stance. Builds a **local** review plan (under
+  `~/.cache/coding-flows/<owner>/<repo>/pr-<N>/`); the plan never touches the PR.
+  Publishes only `/lgtm` with a coverage marker (compact, machine-verifiable)
+  or `--request-changes` with natural-language findings.
+
+## Merge gates (hard, machine-checked)
+
+A PR is merge-ready only when **all** pass. Enforced by `scripts/coding-flows-merge` —
+agents **must not** call `gh pr merge` directly.
+
+1. **CI green** on the latest commit (flaky-test policy applied first — see
+   [references/flaky-test-policy.md](references/flaky-test-policy.md)).
+2. **Linked issue** present in PR body (`Closes #N` / `Fixes #N` / `Resolves #N`).
+3. **AC mapping table** present and complete — see
+   [references/ac-mapping.md](references/ac-mapping.md).
+4. **LGTM coverage** — the union of `acs=`, `invariants=`, and
+   `risks-reviewed=` claims across current-head `/lgtm` markers covers every
+   AC ID, every triggered invariant, and every Coder-declared risk category.
+   See [references/review-plan.md](references/review-plan.md).
+5. **Current LGTM** — most recent `/lgtm` comment is bound to the current
+   head SHA; any new push invalidates the prior LGTM.
+6. **No unresolved review threads.**
+7. **Squash or rebase only** (per `merge.method` in config; allowance against
+   repo settings is verified live or via `CODING_FLOWS_REPO_ALLOWS`).
+8. **High-risk PRs require dual LGTM** from two distinct reviewer markers —
+   see [references/high-risk-pr.md](references/high-risk-pr.md).
+9. **Risks declared** — `## Risks` table present with structured
+   Category/Description/Mitigation rows + matching HTML marker.
+10. **Scope envelope** — every changed file is claimed by an AC mapping row,
+    a `## Support files` entry, or `scope_envelope.exclude_paths`.
+
+Full reference: **[references/merge-gates.md](references/merge-gates.md)**.
+
+## Adversarial Reviewer
+
+Reviewer cycles run with a **default-deny** stance: the goal is to find reasons
+NOT to approve. `/lgtm` is signed only when every line of the review plan has
+documented evidence. Prompt template: see
+[references/reviewer-cycle.md](references/reviewer-cycle.md) §"Adversarial prompt".
+
+For high-risk PRs, a **second reviewer agent** is dispatched with the same
+adversarial prompt but blind to the first review's findings — both must
+independently sign `/lgtm` before merge.
+
+## Self-approval / LGTM signal protocol
+
+When Coder and Reviewer authenticate as the same GitHub user, formal
+`--approve` is blocked. Approval is signaled by a top-level PR comment whose
+**first line is exactly `/lgtm`** with a marker binding it to head SHA and
+enumerating coverage:
+
+```
+/lgtm
+
+<!-- coding-flows:lgtm sha=<full-head-sha> reviewer=<reviewer-id> acs=AC-1,AC-2 invariants=name1,name2 risks-reviewed=migration,perf -->
+<1-3 sentence summary of evidence — what AC items, what invariants, what
+risks, what edge cases were verified.>
+```
+
+Required fields: `sha`, `reviewer`, `acs`, `invariants`. `risks-reviewed=`
+is parsed when present (covers Gate 4's risk-coverage check; older markers
+without it are still parsed for backwards compat — coverage simply has
+nothing to enforce on that axis).
+The visible body stays short — comment format rules in
+[references/pr-comment-format.md](references/pr-comment-format.md).
+
+`scripts/coding-flows-check-lgtm` parses the marker; `coding-flows-verify-lgtm-coverage`
+confirms `acs=` covers the AC mapping table and `invariants=` covers every
+triggered invariant.
+
+## PR comment format discipline
+
+Every comment the skill posts must follow
+[references/pr-comment-format.md](references/pr-comment-format.md):
+
+- ≤ 25 visible lines, machine data in HTML comments only
+- One `/lgtm` per reviewer per head SHA
+- No status-update / "plan v=N" / "verdicts filled" comments
+- Blocking findings go in `gh pr review --request-changes` body (prose +
+  file:line bullets), not in a separate top-level comment
+
+The Reviewer's full plan is a local file under
+`~/.cache/coding-flows/<owner>/<repo>/pr-<N>/`; **never** paste it into the PR.
+
+## Notification protocol (`needs-human`)
+
+When the cycle needs human input, it adds `needs-human` label + posts a marker
+comment. See **[references/notification-protocol.md](references/notification-protocol.md)**
+for reason tags (`ambiguous-issue`, `disagreement`, `iteration-cap`,
+`repeated-ci-failure`, `dual-review-disagreement`, etc.) and dedupe rules.
+
+## Hard guardrails
+
+- **Never** run `gh pr review --approve` on a PR authored by the same user.
+- **Never** merge except through `scripts/coding-flows-merge` — it enforces all 8 gates.
+- **Never** force-push to a branch with open Reviewer comments not yet addressed.
+  Use additional commits.
+- **Never** close an issue you can't actually fix; comment instead.
+- **Never** edit a test to make it pass. If a test is wrong, file an issue.
+- **Never** commit secrets, `.env` files, or credentials.
+- **Never** bundle unrelated changes into a PR — file a follow-up issue and a
+  separate PR.
+- **Never** add a `Co-Authored-By:` trailer to any commit — neither in direct
+  commits nor in commits made by sub-agents you dispatch.
+- If `gh auth status` reports unauthenticated → abort the cycle.
+- If cwd is not a GitHub repo → abort the cycle.
+- If `git status` shows unrelated dirty state → abort the cycle.
+
+## Scripts
+
+All under `scripts/`. Each has a pure verification lib under `scripts/lib/`
+that takes JSON via stdin or arg (so tests can run with fixtures).
+
+| Script | Purpose |
+|--------|---------|
+| `coding-flows-detect-scope`          | List skills/standards triggered by a diff |
+| `coding-flows-label-risk`            | Apply `high-risk:*` labels per config rules |
+| `coding-flows-verify-ac-mapping`     | Parse PR body, validate AC mapping table |
+| `coding-flows-verify-risks`          | Parse PR body, validate `## Risks` section (Gate 9) |
+| `coding-flows-verify-scope-envelope` | Confirm every changed file is claimed (Gate 10) |
+| `coding-flows-coder-plan`            | Manage Coder's local working plan: init/path/render/validate |
+| `coding-flows-clarification-status`  | Determine if a `clarify`-state issue is now actionable |
+| `coding-flows-check-lgtm`            | Parse `/lgtm` markers; confirm head-binding |
+| `coding-flows-verify-lgtm-coverage`  | Demand `acs=`/`invariants=`/`risks-reviewed=` claims cover Coder's declarations |
+| `coding-flows-fetch-for-reviewer`    | Emit a comment-filtered PR view for dual-reviewer blindness |
+| `coding-flows-worktree-create`       | Open a managed worktree for an issue |
+| `coding-flows-worktree-list`         | List all managed worktrees + branches + heads |
+| `coding-flows-worktree-path`         | Resolve a branch's managed worktree path |
+| `coding-flows-worktree-remove`       | Tear down a managed worktree (auto-called by `coding-flows-merge`) |
+| `coding-flows-worktree-prune`        | Cycle pre-flight cleanup of MERGED/CLOSED worktrees |
+| `coding-flows-worktree-sync`         | Rebase the current worktree onto its base ref |
+| `coding-flows-merge`                 | Compose all gates → `gh pr merge` (hard blocker); cleans up worktree on success |
+
+Reference: **[references/scripts.md](references/scripts.md)**. Tests:
+`tests/run-all.sh`.
+
+## Output protocol — end of every cycle
+
+Print a one-screen summary the wrapping scheduler can read at a glance:
+
+```
+coding-flows cycle  role=<coder|reviewer>  repo=<owner/name>  ts=<ISO8601>
+
+Processed:
+  - issue #N: <one-line action>
+  - PR    #M: <one-line action>
+
+Skipped:
+  - PR #K: idle (no new commits since last review)
+
+Needs human:
+  - issue #J  reason=ambiguous-issue   notified=label+marker
+  - PR    #L  reason=repeated-ci-failure  notified=already-labeled
+```
+
+## Wrapping for continuous monitoring
+
+This skill runs **one cycle** per invocation. Wrap with:
+
+- `slock reminder schedule --recur "every 10 minutes" --message "run coding-flows with role=coder"`
+- `/loop` for tighter local polling within a single Claude session.

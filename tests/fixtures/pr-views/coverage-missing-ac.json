@@ -1,0 +1,37 @@
+{
+  "number": 11,
+  "headRefOid": "covMissAc11",
+  "body": "## Summary\n\nClose #110.\n\n## AC mapping\n\n| AC   | Description | Test                | Code              | Commit  |\n|------|-------------|---------------------|-------------------|---------|\n| AC-1 | x           | backend/handler.go:T1 | backend/handler.go:1 | bb1     |\n| AC-2 | y           | backend/handler.go:T2 | backend/handler.go:2 | bb1     |\n| AC-3 | z           | backend/handler.go:T3 | backend/handler.go:3 | bb2     |\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T14:00:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=covMissAc11 reviewer=r1 acs=AC-1,AC-2 invariants=no-secrets-in-logs -->\nVerified two of three (oops)."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "bb1bbbbbbb"
+    },
+    {
+      "oid": "bb2cccccc"
+    },
+    {
+      "oid": "covMissAc11"
+    }
+  ],
+  "files": [
+    {
+      "path": "backend/handler.go",
+      "additions": 5,
+      "deletions": 1
+    }
+  ],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": []
+}

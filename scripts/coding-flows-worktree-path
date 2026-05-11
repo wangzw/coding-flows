@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# coding-flows-worktree-path <branch>
+#
+# Emit the absolute path where the managed worktree for <branch> WOULD be.
+# Does not create or check existence — pure path resolution. Useful for
+# Coder cycle to compute the worktree path before deciding to create or
+# re-enter.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/worktree.sh
+source "$SCRIPT_DIR/lib/worktree.sh"
+
+if [[ $# -lt 1 ]]; then
+  echo "Usage: coding-flows-worktree-path <branch>" >&2
+  exit 64
+fi
+
+worktree_path_for_branch "$1"

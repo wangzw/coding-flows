@@ -1,0 +1,114 @@
+{
+  "acting_user": "octocat",
+  "notification": {
+    "label": "needs-human",
+    "human_user": "octocat"
+  },
+  "worktree": {
+    "root": "../castworks-worktrees"
+  },
+  "merge": {
+    "method": "squash",
+    "delete_branch": true,
+    "post_merge_issue_comment": true
+  },
+  "ac_mapping": {
+    "required": true,
+    "section_headers": ["AC mapping", "AC Mapping", "ACs", "Acceptance Criteria"],
+    "required_columns": ["AC", "Description", "Test", "Code", "Commit"]
+  },
+  "lgtm_coverage": {
+    "required": true,
+    "marker_prefix": "coding-flows:lgtm"
+  },
+  "scope_rules": [
+    {
+      "paths": ["backend/**", "**/*.go"],
+      "skills": ["backend-coding-standards"],
+      "standards": ["docs/standards/backend.md"]
+    },
+    {
+      "paths": ["frontend/**", "**/*.ts", "**/*.tsx"],
+      "skills": ["frontend-coding-standards"]
+    },
+    {
+      "paths": ["migrations/**"],
+      "standards": ["docs/standards/migrations.md"]
+    }
+  ],
+  "invariants": [
+    {
+      "id": "events-before-publish",
+      "rule": "every nats.Publish must be preceded by eventstore write in same function",
+      "triggered_by_paths": ["**/eventstore/**", "**/messaging/**", "**/sse/**"]
+    },
+    {
+      "id": "no-secrets-in-logs",
+      "rule": "log fields must not include api keys, tokens, or session ids",
+      "triggered_by_paths": ["**/*.go", "**/*.ts", "**/*.tsx"]
+    }
+  ],
+  "high_risk_rules": [
+    {
+      "paths": ["**/auth/**", "**/security/**"],
+      "label": "high-risk:auth"
+    },
+    {
+      "paths": ["**/migrations/**"],
+      "exclude_paths": ["**/test/**", "**/fixtures/**"],
+      "label": "high-risk:migration"
+    },
+    {
+      "paths": ["**/billing/**", "**/payments/**"],
+      "label": "high-risk:billing"
+    },
+    {
+      "paths": ["docker-compose*.yml", ".github/workflows/**"],
+      "label": "high-risk:deploy"
+    },
+    {
+      "size": {"lines_changed": 1000},
+      "exclude_labels": ["dependencies", "docs-only"],
+      "label": "high-risk:large"
+    }
+  ],
+  "risks": {
+    "allowed_categories": [
+      "migration",
+      "feature-flag",
+      "secret",
+      "perf",
+      "external-side-effect",
+      "compat-break",
+      "none"
+    ]
+  },
+  "scope_envelope": {
+    "exclude_paths": [
+      "*.md",
+      "**/CHANGELOG*",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
+      "go.sum",
+      "Cargo.lock",
+      "poetry.lock",
+      "**/*.snap",
+      "**/openapi/**",
+      "frontend/openapi.json",
+      "**/api/generated/**",
+      ".github/dependabot.yml"
+    ]
+  },
+  "flake_policy": {
+    "retry_count": 1,
+    "open_issue_on_persistent_failure": true
+  },
+  "reviewer": {
+    "adversarial_prompt": true,
+    "dual_review_label_globs": ["high-risk:*"]
+  },
+  "iteration": {
+    "round_cap": 5
+  }
+}

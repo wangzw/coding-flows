@@ -1,0 +1,3 @@
+backend/internal/foo/service.go
+backend/internal/foo/handler.go
+backend/internal/foo/service_test.go

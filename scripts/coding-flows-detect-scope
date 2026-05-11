@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# coding-flows-detect-scope [--pr <N> | --base <branch> | --from-file <files-list>]
+#
+# Lists which scope_rules in .coding-flows.json are triggered by a diff.
+#
+# Modes:
+#   --pr N         : use changed files of PR N (via gh).
+#   --base BR      : use `git diff --name-only BR...HEAD`.
+#   --from-file P  : read newline-separated paths from file P (for tests).
+#   default        : --base origin/HEAD (best-effort).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/detect-scope.sh
+source "$SCRIPT_DIR/lib/detect-scope.sh"
+
+usage() {
+  cat <<'EOF' >&2
+Usage:
+  coding-flows-detect-scope --pr <N>
+  coding-flows-detect-scope --base <branch>
+  coding-flows-detect-scope --from-file <path>
+EOF
+  exit 64
+}
+
+main() {
+  local mode="" arg="" config=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pr)        mode="pr";   arg="$2"; shift 2 ;;
+      --base)      mode="base"; arg="$2"; shift 2 ;;
+      --from-file) mode="file"; arg="$2"; shift 2 ;;
+      --config)    config="$2"; shift 2 ;;
+      -h|--help)   usage ;;
+      *)           usage ;;
+    esac
+  done
+
+  local files=""
+  case "$mode" in
+    pr)
+      files="$(gh pr view "$arg" --json files --jq '.files[].path')"
+      ;;
+    base)
+      files="$(git diff --name-only "$arg"...HEAD)"
+      ;;
+    file)
+      [[ -f "$arg" ]] || { log_error "no such file: $arg"; exit 64; }
+      files="$(cat "$arg")"
+      ;;
+    *)
+      # Default: try origin/HEAD..HEAD
+      files="$(git diff --name-only origin/HEAD...HEAD 2>/dev/null || true)"
+      ;;
+  esac
+
+  detect_scope "$files" "$config"
+}
+
+main "$@"

@@ -1,0 +1,31 @@
+{
+  "number": 3,
+  "headRefOid": "newhead0002",
+  "body": "Closes #30.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T | y.go:1 | aaa1 |\n\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-10T10:00:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=oldhead0001 reviewer=r1 acs=AC-1 invariants= -->\nLGTM on older commit."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "aaa1bbbbb"
+    },
+    {
+      "oid": "oldhead0001"
+    },
+    {
+      "oid": "newhead0002"
+    }
+  ],
+  "files": [],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": []
+}

@@ -1,0 +1,25 @@
+{
+  "number": 5,
+  "headRefOid": "headNoMark04",
+  "body": "Closes #50.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T | a.go:1 | abc1 |\n\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T12:00:00Z",
+      "body": "/lgtm\n\nThis looks great, but no machine marker."
+    }
+  ],
+  "commits": [
+    {
+      "oid": "headNoMark04"
+    }
+  ],
+  "files": [],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": []
+}

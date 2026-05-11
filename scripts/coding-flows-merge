@@ -1,0 +1,265 @@
+#!/usr/bin/env bash
+# coding-flows-merge <PR> [--dry-run] [--keep-worktree]
+# coding-flows-merge --from-file <pr-view-json> [--dry-run]
+#
+# Composes every merge gate and, only if all pass, calls `gh pr merge`.
+# See references/merge-gates.md for the gate definitions and
+# references/scripts.md for exit-code semantics.
+#
+# Flags:
+#   --dry-run         Run every gate but skip `gh pr merge` itself (and the
+#                     subsequent worktree/cache cleanup).
+#   --keep-worktree   After a successful merge, leave both the worktree
+#                     directory AND the plan cache
+#                     (~/.cache/coding-flows/<owner>/<repo>/pr-<N>/) intact so
+#                     the merged branch can be inspected post-hoc. Without
+#                     this flag, both are removed.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/check-lgtm.sh
+source "$SCRIPT_DIR/lib/check-lgtm.sh"
+# shellcheck source=lib/verify-ac-mapping.sh
+source "$SCRIPT_DIR/lib/verify-ac-mapping.sh"
+# shellcheck source=lib/verify-risks.sh
+source "$SCRIPT_DIR/lib/verify-risks.sh"
+# shellcheck source=lib/verify-scope-envelope.sh
+source "$SCRIPT_DIR/lib/verify-scope-envelope.sh"
+# shellcheck source=lib/verify-lgtm-coverage.sh
+source "$SCRIPT_DIR/lib/verify-lgtm-coverage.sh"
+# shellcheck source=lib/worktree.sh
+source "$SCRIPT_DIR/lib/worktree.sh"
+
+# Exit codes (see references/scripts.md).
+EC_OK=0
+EC_CI_FAILING=10
+EC_LINKED_ISSUE_MISSING=11
+EC_AC_MAPPING=12
+EC_COVERAGE=13
+EC_STALE_LGTM=14
+EC_LGTM_MISSING=15
+EC_UNRESOLVED=16
+EC_MERGE_METHOD=17
+EC_DUAL_LGTM=18
+EC_SCOPE_ENVELOPE=19
+EC_RISKS=20
+
+main() {
+  local dry_run=0
+  local keep_worktree=0
+  local args=()
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --dry-run)        dry_run=1;        shift ;;
+      --keep-worktree)  keep_worktree=1;  shift ;;
+      *) args+=("$1"); shift ;;
+    esac
+  done
+
+  load_pr_view "${args[@]}"
+
+  # Gate 1 — CI green
+  local failing_checks
+  failing_checks="$(jq -r '
+    [(.statusCheckRollup // [])[]
+      | select((.conclusion // .state // "") | ascii_upcase | test("FAIL|ERROR|CANCEL"))
+      | (.name // "(unknown)")
+    ] | join(",")
+  ' <<<"$PR_VIEW_JSON")"
+  if [[ -n "$failing_checks" ]]; then
+    log_error "Gate 1 (ci-failing): $failing_checks"
+    return $EC_CI_FAILING
+  fi
+
+  # Gate 2 — Linked issue
+  local body
+  body="$(jq -r '.body // ""' <<<"$PR_VIEW_JSON")"
+  if ! grep -iqE '(close[ds]?|fix(ed|es)?|resolve[ds]?)[[:space:]]+#[0-9]+' <<<"$body"; then
+    log_error "Gate 2 (linked-issue-missing): PR body has no Close[s|d]/Fix[es|ed]/Resolve[s|d] #N"
+    return $EC_LINKED_ISSUE_MISSING
+  fi
+
+  # Gate 3 — AC mapping
+  if ! verify_ac_mapping "$body" "$PR_VIEW_JSON" >/dev/null; then
+    log_error "Gate 3 (ac-mapping-incomplete)"
+    return $EC_AC_MAPPING
+  fi
+
+  # Gate 9 — Risks section
+  if ! verify_risks "$body" >/dev/null; then
+    log_error "Gate 9 (risks-missing-or-malformed)"
+    return $EC_RISKS
+  fi
+
+  # Gate 10 — Scope envelope: every changed file must be claimed
+  if ! verify_scope_envelope "$PR_VIEW_JSON" >/dev/null; then
+    log_error "Gate 10 (scope-envelope-violation)"
+    return $EC_SCOPE_ENVELOPE
+  fi
+
+  # Gate 4 — LGTM coverage (subsumes the old separate review-plan gate)
+  local cov_out cov_rc=0
+  cov_out="$(verify_lgtm_coverage "$PR_VIEW_JSON")" || cov_rc=$?
+  case $cov_rc in
+    0) ;;
+    1) log_error "Gate 4 (lgtm-coverage-incomplete)"; return $EC_COVERAGE ;;
+    2)
+      # Coverage check failed at prerequisite stage — usually no current LGTM.
+      # Run check_lgtm directly to produce the more specific exit code.
+      local lgtm_rc=0
+      check_lgtm "$PR_VIEW_JSON" >/dev/null || lgtm_rc=$?
+      case $lgtm_rc in
+        1) log_error "Gate 5 (lgtm-missing)";       return $EC_LGTM_MISSING ;;
+        2) log_error "Gate 5 (stale-lgtm)";          return $EC_STALE_LGTM ;;
+        *) log_error "Gate 4/5 prerequisite failed"; return $EC_COVERAGE ;;
+      esac
+      ;;
+    *) log_error "Gate 4 (verify_lgtm_coverage exit $cov_rc)"; return $EC_COVERAGE ;;
+  esac
+
+  # Gate 5 — LGTM bound to head (re-fetch count + reviewers for Gate 8)
+  local lgtm_out
+  lgtm_out="$(check_lgtm "$PR_VIEW_JSON")"
+  local lgtm_count lgtm_reviewers
+  lgtm_count="$(grep -E '^LGTM_COUNT=' <<<"$lgtm_out" | head -n1 | cut -d= -f2)"
+  lgtm_reviewers="$(grep -E '^LGTM_REVIEWERS=' <<<"$lgtm_out" | head -n1 | cut -d= -f2-)"
+
+  # Gate 6 — No unresolved review threads.
+  # A CHANGES_REQUESTED review by reviewer X is considered superseded if X
+  # subsequently posted a /lgtm comment (bound to any head; freshness vs head
+  # is handled by Gate 5). Without supersession the gate would block forever
+  # after the first "request changes", since /lgtm comments don't dismiss
+  # reviews at the API level.
+  local pending_changes
+  pending_changes="$(jq -r '
+    . as $pr
+    | [(.reviews // [])
+        | sort_by(.submittedAt) | reverse
+        | group_by(.author.login // "?")
+        | map(.[0])
+        | .[]
+        | select(.state == "CHANGES_REQUESTED")
+        | . as $r
+        | (
+            [$pr.comments[]?
+              | select((.author.login // "") == ($r.author.login // ""))
+              | select((.body // "" | split("\n") | map(select(test("\\S"))) | .[0] // "") == "/lgtm")
+              | select((.createdAt // "") > ($r.submittedAt // ""))
+            ] | length
+          ) as $superseded
+        | select($superseded == 0)
+        | ($r.author.login // "?")
+      ] | length
+  ' <<<"$PR_VIEW_JSON")"
+  if [[ "$pending_changes" -gt 0 ]]; then
+    log_error "Gate 6 (unresolved-threads): $pending_changes reviewer(s) have outstanding CHANGES_REQUESTED not superseded by /lgtm"
+    return $EC_UNRESOLVED
+  fi
+
+  # Gate 7 — Merge method
+  local merge_method
+  merge_method="$(read_config '.merge.method' 'squash')"
+  case "$merge_method" in
+    squash|rebase) ;;
+    *) log_error "Gate 7 (merge-method-disallowed): unsupported merge.method '$merge_method'"
+       return $EC_MERGE_METHOD ;;
+  esac
+  local repo_allows
+  repo_allows="$(repo_allowed_merge_methods)"
+  if [[ ",$repo_allows," != *",$merge_method,"* ]]; then
+    log_error "Gate 7 (merge-method-disallowed): configured '$merge_method' not in repo-allowed methods [$repo_allows]"
+    return $EC_MERGE_METHOD
+  fi
+
+  # Gate 8 — High-risk dual LGTM
+  local high_risk_labels
+  high_risk_labels="$(jq -r '
+    [(.labels // [])[] | .name | select(test("^high-risk:"))] | join(",")
+  ' <<<"$PR_VIEW_JSON")"
+  if [[ -n "$high_risk_labels" ]]; then
+    if (( lgtm_count < 2 )); then
+      log_error "Gate 8 (dual-lgtm-missing): high-risk labels=[$high_risk_labels] require ≥2 LGTM, have $lgtm_count"
+      return $EC_DUAL_LGTM
+    fi
+  fi
+
+  log_info "all gates pass; reviewers=$lgtm_reviewers, method=$merge_method"
+
+  if [[ $dry_run -eq 1 ]]; then
+    log_info "dry-run: not invoking gh pr merge"
+    return $EC_OK
+  fi
+
+  local pr
+  pr="$(jq -r '.number // empty' <<<"$PR_VIEW_JSON")"
+  if [[ -z "$pr" ]]; then
+    log_error "PR number not available; cannot merge"
+    return 64
+  fi
+
+  local delete_branch
+  delete_branch="$(read_config '.merge.delete_branch' 'true')"
+  local args_merge=("--$merge_method")
+  if [[ "$delete_branch" == "true" ]]; then
+    args_merge+=("--delete-branch")
+  fi
+
+  gh pr merge "$pr" "${args_merge[@]}"
+
+  # Post one-line thanks on linked issue
+  local issue_num
+  issue_num="$(grep -ioE '(close[ds]?|fix(ed|es)?|resolve[ds]?)[[:space:]]+#[0-9]+' <<<"$body" | head -n1 | grep -oE '[0-9]+' || true)"
+  local post_thanks
+  post_thanks="$(read_config '.merge.post_merge_issue_comment' 'true')"
+  if [[ -n "$issue_num" && "$post_thanks" == "true" ]]; then
+    gh issue comment "$issue_num" --body "Shipped in #$pr — thanks!" >/dev/null || \
+      log_warn "could not post thanks comment on issue #$issue_num"
+  fi
+
+  # Post-merge worktree + cache cleanup. Best-effort: anything unexpected
+  # (uncommitted state, missing branch info) → warn + leave for manual.
+  if [[ $keep_worktree -eq 0 ]]; then
+    _post_merge_cleanup "$pr" "$PR_VIEW_JSON" || log_warn "post-merge cleanup partially failed; inspect manually"
+  fi
+
+  return $EC_OK
+}
+
+# _post_merge_cleanup <pr-number> <pr-view-json> — remove the worktree for
+# the merged branch and clear its plan cache. Best-effort.
+_post_merge_cleanup() {
+  local pr="$1" json="$2"
+  local branch
+  branch="$(jq -r '.headRefName // empty' <<<"$json" 2>/dev/null || true)"
+
+  # If we don't have headRefName (some fixtures), try to infer from cwd.
+  if [[ -z "$branch" ]] && git rev-parse --abbrev-ref HEAD >/dev/null 2>&1; then
+    branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  fi
+  if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
+    log_warn "post-merge: could not determine branch name; skipping worktree cleanup"
+    return 0
+  fi
+
+  # cd out of the worktree being removed — git worktree remove refuses if
+  # cwd is the target.
+  local main_root
+  main_root="$(_main_repo_root 2>/dev/null || true)"
+  if [[ -n "$main_root" && "$PWD" != "$main_root" ]]; then
+    cd "$main_root" 2>/dev/null || true
+  fi
+
+  worktree_remove "$branch" || log_warn "post-merge: worktree_remove for $branch returned non-zero"
+
+  # Clear local plan cache for this PR.
+  local pr_cache
+  pr_cache="$(repo_state_dir "$pr" 2>/dev/null || true)"
+  if [[ -n "$pr_cache" && -d "$pr_cache" ]]; then
+    log_info "clearing local plan cache: $pr_cache"
+    rm -rf "$pr_cache"
+  fi
+}
+
+main "$@"

@@ -1,0 +1,13 @@
+# Editor / OS detritus
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Local test artifacts
+tests/.gh-flow.json
+tests/tmp/
+*.tmp
+
+# Per-repo state (anyone who clones is starting fresh)
+.cache/

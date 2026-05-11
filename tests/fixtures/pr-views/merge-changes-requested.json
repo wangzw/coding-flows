@@ -1,0 +1,39 @@
+{
+  "number": 22,
+  "headRefOid": "chgReq22",
+  "body": "Closes #220.\n\n## AC mapping\n\n| AC | Description | Test | Code | Commit |\n|----|-------------|------|------|--------|\n| AC-1 | x | t.go:T | a.go:1 | ee1 |\n\n\n## Risks\n\n<!-- coding-flows:risks categories= -->\n\n| Category | Description | Mitigation |\n|----------|-------------|------------|\n| none | — | — |\n",
+  "comments": [
+    {
+      "createdAt": "2025-05-11T18:00:00Z",
+      "body": "/lgtm\n\n<!-- coding-flows:lgtm sha=chgReq22 reviewer=r1 acs=AC-1 invariants= -->\nlooks ok"
+    }
+  ],
+  "commits": [
+    {
+      "oid": "chgReq22"
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "additions": 1,
+      "deletions": 0
+    }
+  ],
+  "labels": [],
+  "statusCheckRollup": [
+    {
+      "name": "ci",
+      "state": "SUCCESS"
+    }
+  ],
+  "reviews": [
+    {
+      "author": {
+        "login": "anotherreviewer"
+      },
+      "state": "CHANGES_REQUESTED",
+      "submittedAt": "2025-05-11T18:30:00Z"
+    }
+  ]
+}
