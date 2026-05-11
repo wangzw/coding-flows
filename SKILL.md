@@ -274,6 +274,30 @@ make the omission visible.
 For a **Reviewer cycle**, the same rule applies to PRs only — issues
 are out of scope. `Open work:` therefore omits the `issues=` segment.
 
+### Creating items: `--assignee @me` is mandatory
+
+Both Phase A queries filter by `--assignee`. An un-assigned PR or
+issue is INVISIBLE to the next cycle. The Reviewer never sees
+un-assigned PRs (review never starts); the Coder never sees
+un-assigned issues (full-coverage rule above can't report them).
+
+Therefore, every:
+
+- `gh pr create ...` — MUST include `--assignee @me`
+- `gh issue create ...` — MUST include `--assignee @me`
+
+If you forget (or gh silently drops the flag — rare), the immediate
+fallback is one extra API call:
+
+- `gh pr edit <PR> --add-assignee @me`
+- `gh issue edit <N> --add-assignee @me`
+
+Run the fallback in the SAME cycle, before rotating away. Two
+regressions observed today (PRs #291/#293 cluster, PRs #417+#419+
+#421+#423 + issues #418/#420/#422 cluster) — both produced PRs and
+issues invisible to downstream cycles. Detailed template:
+[references/coder-cycle.md](references/coder-cycle.md) Phase D.
+
 ### Skipped reasons are scoped to item type — do not mix
 
 PR-side `Skipped:` reasons MUST be one of the classifier enum values.
