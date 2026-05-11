@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# coding-flows-pr-create [<gh pr create args...>]
+#
+# Wraps `gh pr create` and guarantees --assignee @me lands on the new PR.
+#
+# Why this exists: agents have repeatedly dropped --assignee @me from raw
+# `gh pr create` invocations (observed regressions on PRs #291, #293,
+# #417, #419, #421, #423, #431, #433 over one session). Without the
+# assignee, the Reviewer's Phase A query (`gh pr list --assignee @me`)
+# never sees the PR and review never starts. This wrapper makes the
+# correct behavior the path of least resistance.
+#
+# Behavior:
+#   1. Inject --assignee @me into the argv (idempotent — if the caller
+#      already passed --assignee, gh's last-wins rule applies and ours
+#      is the last one).
+#   2. Run gh pr create, capture URL.
+#   3. Verify .assignees[] is non-empty. If empty, run `gh pr edit
+#      --add-assignee @me` as a fallback.
+#   4. Print the PR URL on stdout (compatible drop-in for `gh pr create`).
+#
+# Pass-through: every flag accepted by `gh pr create` works here. The
+# only difference is the guaranteed assignee.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+
+# Inject --assignee @me at the END so it overrides any caller-provided value.
+PR_URL="$(gh pr create "$@" --assignee @me)"
+if [[ -z "$PR_URL" ]]; then
+  log_error "pr-create: gh pr create returned empty output"
+  exit 69
+fi
+PR_NUM="${PR_URL##*/}"
+
+# Verify and fallback.
+if [[ -z "$(gh pr view "$PR_NUM" --json assignees --jq '.assignees[].login' 2>/dev/null | head -n1)" ]]; then
+  log_info "pr-create: --assignee @me did not stick; using fallback edit"
+  gh pr edit "$PR_NUM" --add-assignee @me >/dev/null \
+    || log_warn "pr-create: gh pr edit --add-assignee fallback also failed"
+fi
+
+# Emit the URL so callers can read it the same way `gh pr create` is read.
+printf '%s\n' "$PR_URL"

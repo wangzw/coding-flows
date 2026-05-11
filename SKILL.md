@@ -220,6 +220,8 @@ that takes JSON via stdin or arg (so tests can run with fixtures).
 | `coding-flows-verify-test-plan`      | Gate 11: every `- [ ]` in `## Test plan` is checked or removed |
 | `coding-flows-show-coverage`         | Emit exact `acs=`/`invariants=`/`risks-reviewed=` values for the Reviewer's LGTM marker |
 | `coding-flows-revoke-lgtm`           | Reviewer: post a top-level comment with revoke marker (works on self-PRs; supersedes prior `/lgtm` via `check-lgtm`) |
+| `coding-flows-pr-create`             | Wrap `gh pr create`; guarantees `--assignee @me` lands. Use this instead of raw `gh pr create`. |
+| `coding-flows-issue-create`          | Wrap `gh issue create`; guarantees `--assignee @me` lands. Use this instead of raw `gh issue create`. |
 | `coding-flows-fetch-for-reviewer`    | Emit a comment-filtered PR view for dual-reviewer blindness |
 | `coding-flows-worktree-create`       | Open a managed worktree for an issue |
 | `coding-flows-worktree-list`         | List all managed worktrees + branches + heads |
@@ -274,29 +276,34 @@ make the omission visible.
 For a **Reviewer cycle**, the same rule applies to PRs only — issues
 are out of scope. `Open work:` therefore omits the `issues=` segment.
 
-### Creating items: `--assignee @me` is mandatory
+### Creating items: use the wrappers (assignee enforced)
 
 Both Phase A queries filter by `--assignee`. An un-assigned PR or
 issue is INVISIBLE to the next cycle. The Reviewer never sees
 un-assigned PRs (review never starts); the Coder never sees
 un-assigned issues (full-coverage rule above can't report them).
 
-Therefore, every:
+To make the correct behavior the path of least resistance, use the
+wrappers instead of the raw gh commands:
 
-- `gh pr create ...` — MUST include `--assignee @me`
-- `gh issue create ...` — MUST include `--assignee @me`
+- **`coding-flows-pr-create ...`** instead of `gh pr create ...`
+- **`coding-flows-issue-create ...`** instead of `gh issue create ...`
 
-If you forget (or gh silently drops the flag — rare), the immediate
-fallback is one extra API call:
+Each wrapper passes every argument through to gh, injects
+`--assignee @me`, then verifies the assignee landed (with a fallback
+`gh pr edit --add-assignee @me` if not). Drop-in compatible.
 
-- `gh pr edit <PR> --add-assignee @me`
-- `gh issue edit <N> --add-assignee @me`
+If for some reason you must call raw `gh pr create` / `gh issue create`,
+you are responsible for including `--assignee @me` AND running the
+same verification + fallback. Doc-only fixes for this rule regressed
+four times in one session — that's why the wrappers exist:
 
-Run the fallback in the SAME cycle, before rotating away. Two
-regressions observed today (PRs #291/#293 cluster, PRs #417+#419+
-#421+#423 + issues #418/#420/#422 cluster) — both produced PRs and
-issues invisible to downstream cycles. Detailed template:
-[references/coder-cycle.md](references/coder-cycle.md) Phase D.
+- PRs #291/#293 cluster
+- PRs #417/#419/#421/#423 + issues #418/#420/#422 cluster
+- PR #431 + issue #430
+- PR #433 + issue #432
+
+Detailed Phase D template: [references/coder-cycle.md](references/coder-cycle.md).
 
 ### Skipped reasons are scoped to item type — do not mix
 

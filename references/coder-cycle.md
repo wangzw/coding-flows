@@ -404,37 +404,27 @@ coding-flows-coder-plan validate <branch>
 RENDERED="$(coding-flows-coder-plan render <branch>)"
 
 # OPTIONAL — focused Closes-target issue (multi-issue umbrella case).
-# If the work doesn't map cleanly onto a single existing issue and you
-# want to file a focused tracker for the PR's `Closes #N`, do it here.
-# --assignee @me is MANDATORY: a downstream Phase A `gh issue list
-# --assignee @me` won't see an unassigned issue, and the cycle output
-# protocol's full-coverage rule then can't account for it.
-FOCUS_ISSUE_URL="$(gh issue create --assignee @me \
+# Use the coding-flows-issue-create wrapper instead of raw `gh issue
+# create`. It guarantees --assignee @me lands (with a fallback edit if
+# the flag silently drops). Calling raw `gh issue create` is the
+# observed failure mode behind the un-assigned issue clusters (#418,
+# #420, #422, #430, #432).
+FOCUS_ISSUE_URL="$(coding-flows-issue-create \
   --title "..." \
   --body "...")"
 FOCUS_NUM="${FOCUS_ISSUE_URL##*/}"
-# Same belt-and-suspenders fallback as the PR side:
-if [[ -z "$(gh issue view "$FOCUS_NUM" --json assignees --jq '.assignees[].login' | head -n1)" ]]; then
-  gh issue edit "$FOCUS_NUM" --add-assignee @me
-fi
 
 git push -u origin <branch>
-# IMPORTANT: --assignee @me is mandatory. Without it the Reviewer's
-# Phase A query (`gh pr list --assignee <acting_user>`) cannot see the
-# PR, and review never starts. Use the literal @me — gh resolves it to
-# the authenticated user. Do not omit and do not substitute a bare
-# placeholder.
-PR_URL="$(gh pr create --assignee @me \
+# Use the coding-flows-pr-create wrapper instead of raw `gh pr create`.
+# It guarantees --assignee @me lands. Calling raw `gh pr create` is
+# the observed failure mode behind the un-assigned PR clusters
+# (#291/#293 early-day, #417/#419/#421/#423 mid-day, #431/#433 late-
+# day). The Reviewer's Phase A query filters by --assignee, so an
+# un-assigned PR is invisible and review never starts.
+PR_URL="$(coding-flows-pr-create \
   --title "..." \
   --body "$(printf '%s\n\nCloses #%s\n\n%s\n' "$SUMMARY" "$ISSUE" "$RENDERED")")"
 PR_NUM="${PR_URL##*/}"
-
-# Verify assignee landed (gh silently ignores --assignee on rare
-# permission failures; falling back here costs one API call and
-# prevents the "PR invisible to Reviewer" failure mode).
-if [[ -z "$(gh pr view "$PR_NUM" --json assignees --jq '.assignees[].login' | head -n1)" ]]; then
-  gh pr edit "$PR_NUM" --add-assignee @me
-fi
 ```
 
 The full PR body uses [templates/pr-body.md](../templates/pr-body.md) and
