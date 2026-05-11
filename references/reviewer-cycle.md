@@ -71,6 +71,25 @@ For the underlying gh data, the script does its own `gh pr view`. You
 don't need to fetch separately for classification — but you will need
 the full PR view + diff for Phase B0 work.
 
+**The five state names above are the only valid Reviewer states.** Do
+not invent names. Observed bugs in past transcripts:
+
+- `wait-lgtm` (not a state — use `idle-coder-blocked` if Coder owes
+  fix, or `needs-review` if head changed)
+- `wait-author` (this is an *issue*-side clarification state on the
+  Coder side; not a PR-side Reviewer state — use `idle-coder-blocked`
+  if Coder owes a fix to your prior feedback, or `needs-review` if
+  head changed since you last looked)
+- "nudge round", "reminder cycle" — these aren't states; if you've
+  posted blocking feedback ≥5 times without convergence, trigger the
+  `iteration-cap` notification per
+  [notification-protocol.md](notification-protocol.md) instead of
+  posting yet another reminder.
+
+If the classifier output doesn't match an action you understand, treat
+the PR as truly idle for this cycle and trust the next firing. Do not
+substitute your own state name.
+
 ## Phase B0 — Build the local review plan (no PR posting)
 
 Compute the working artifact on disk before reading the diff. This forces
@@ -176,9 +195,15 @@ post their own LGTM with distinct `reviewer=` markers. See
 [high-risk-pr.md](high-risk-pr.md). The two markers may divide AC/invariant
 coverage between them — the merge gate unions the claims.
 
-### Outcome 2 — Any verdict is `gap` / `violation` → `--request-changes`
+### Outcome 2 — Any verdict is `gap` / `violation` → blocking review
 
-Post a single review:
+A blocking review must carry a machine-readable signal that the merge
+gates and the Coder cycle can see. **Plain prose comments do NOT
+propagate.** Pick one of the three forms below — never just post a
+top-level comment with prose findings and assume the system will see
+them.
+
+#### Form 1: `gh pr review --request-changes` (non-self-PR)
 
 ```
 gh pr review <PR> --request-changes --body "$(cat <<'EOF'
@@ -186,23 +211,59 @@ gh pr review <PR> --request-changes --body "$(cat <<'EOF'
 
 - <file:line> — <one-sentence finding> — <one-sentence suggested fix>
 - ...
-
 EOF
 )"
 ```
 
-Plus inline comments where line-level anchoring helps:
+Gate 6 (unresolved threads) sees this as the reviewer's most-recent
+state and blocks merge until superseded by a fresh `/lgtm` from the
+same reviewer. GitHub rejects `--request-changes` on PRs authored by
+the same user (the self-PR case), so use Form 2 there.
+
+#### Form 2: `coding-flows-revoke-lgtm` (self-PR mode)
 
 ```
-gh pr review <PR> --comment --body "..."  # if a non-blocking observation
+coding-flows-revoke-lgtm <PR> --reviewer <id> -m "$(cat <<'EOF'
+<one-sentence summary of what blocks /lgtm>
+
+- <file:line> — <finding> — <suggested fix>
+EOF
+)"
 ```
 
-Body format rules in [pr-comment-format.md](pr-comment-format.md). **Never**
-paste the JSON plan into the review body — translate `evidence` into prose,
-keep the body short, anchor specifics inline.
+Posts a top-level comment with `<!-- coding-flows:revoke-lgtm
+reviewer=<id> -->`. `check-lgtm` honors revoke markers — the previous
+`/lgtm` is superseded. classify-pr-coder transitions to `address-changes`.
 
-**Never** use `gh pr review --approve` — GitHub will reject self-approval
-and this skill uses the LGTM signal protocol instead.
+#### Form 3: When the head SHA has already changed since your last /lgtm
+
+The prior `/lgtm` is automatically stale. classify-pr-reviewer
+reports `needs-review`. Either:
+- Run a fresh full review at the new head. If satisfied, post a
+  **fresh `/lgtm`** bound to the new head SHA via the LGTM-comment
+  template. If not, drop to Form 1 or Form 2.
+- **Do NOT** post a "still blocking, blockers 1 and 2 remain"
+  top-level comment without one of the markers above. That comment
+  is invisible to the merge state machine — `coding-flows-merge --dry-run`
+  doesn't see it; classify-pr returns `wait-lgtm-fresh`; Coder cycle
+  treats the PR as waiting on you and skips. PR stalls.
+
+Inline observations (non-blocking, informational) can use:
+
+```
+gh pr review <PR> --comment --body "..."
+```
+
+These are advisory and do not affect merge state. If you intend to
+block, use Form 1, 2, or a fresh `--request-changes` review — not a
+top-level `--comment`.
+
+Body format rules in [pr-comment-format.md](pr-comment-format.md).
+Never paste the JSON plan into the review body — translate
+`evidence` into prose, keep the body short, anchor specifics inline.
+
+**Never** use `gh pr review --approve` — GitHub will reject
+self-approval and this skill uses the LGTM signal protocol instead.
 
 ## Revoking a prior LGTM
 
