@@ -37,6 +37,8 @@ source "$SCRIPT_DIR/lib/issue-ac-checkoff.sh"
 source "$SCRIPT_DIR/lib/verify-lgtm-coverage.sh"
 # shellcheck source=lib/worktree.sh
 source "$SCRIPT_DIR/lib/worktree.sh"
+# shellcheck source=lib/gh-merge-result.sh
+source "$SCRIPT_DIR/lib/gh-merge-result.sh"
 
 # Exit codes (see references/scripts.md).
 EC_OK=0
@@ -237,17 +239,29 @@ main() {
   # but our _post_merge_cleanup hasn't run yet — the worktree still has the
   # branch checked out, so git rejects the local delete and gh prints a
   # warning like "failed to delete local branch <X>: ... used by worktree
-  # at ...". The branch IS deleted moments later by our worktree cleanup
-  # (which removes the worktree first, freeing the branch). Filter the
-  # cosmetic warning so it doesn't look like a real failure in transcripts.
+  # at ...". The remote merge has already succeeded; gh exits non-zero only
+  # because the local-side delete failed. Our worktree cleanup runs next
+  # and removes the worktree (which frees + deletes the branch). So if
+  # exit was non-zero but the only error is the local-branch-delete one
+  # AND GitHub confirms the PR is MERGED, treat it as success.
   local merge_out merge_rc=0
   merge_out="$(gh pr merge "$pr" "${args_merge[@]}" 2>&1)" || merge_rc=$?
   local filtered_out
   filtered_out="$(printf '%s\n' "$merge_out" | grep -v 'failed to delete local branch' || true)"
   [[ -n "$filtered_out" ]] && printf '%s\n' "$filtered_out"
   if [[ $merge_rc -ne 0 ]]; then
-    log_error "gh pr merge failed (exit $merge_rc); full output: $merge_out"
-    return 69
+    local remote_state=""
+    remote_state="$(gh pr view "$pr" --json state --jq .state 2>/dev/null || true)"
+    classify_gh_merge_result "$merge_rc" "$remote_state" "$merge_out"
+    case "$GH_MERGE_VERDICT" in
+      cosmetic-success)
+        log_info "gh pr merge exited $merge_rc but PR is MERGED on remote; local-branch delete will succeed after worktree cleanup"
+        ;;
+      *)
+        log_error "gh pr merge failed (exit $merge_rc); full output: $merge_out"
+        return 69
+        ;;
+    esac
   fi
 
   # Enumerate every linked issue (a single PR can close multiple via
