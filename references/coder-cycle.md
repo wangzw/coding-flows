@@ -29,19 +29,15 @@ config and identity resolution work from either via `find_repo_config` +
 
 ## Phase A — Enumerate and classify work
 
-**PRs are enumerated first**, then issues. The cycle then processes them
-in two strict stages — see the priority table below. Stage 2 (issues)
-does not begin until every Stage-1 (PR) item has either been processed
-or is in a waiting state.
-
-One batched query each:
+The cycle runs in two strict **processing** stages — Stage 1 (PRs) and
+Stage 2 (issues), see the priority table below. The two `gh` queries
+themselves can be issued in any order (or in parallel) — what matters
+is that no issue is *processed* until every PR has either been
+processed or is in a waiting state.
 
 ```
-# Stage 1 input — query PRs first
 gh pr list --assignee <acting_user> --state open \
   --json number,title,headRefName,headRefOid,labels,reviewDecision,statusCheckRollup,isDraft
-
-# Stage 2 input — query issues only after the PR list is in hand
 gh issue list --assignee <acting_user> --state open \
   --json number,title,labels,body,author,url
 ```
@@ -56,6 +52,14 @@ For each PR, derive a **state** that determines the Coder's next action:
 | `wait-ci` | CI in progress | **skip** (record in summary) |
 | `wait-review` | CI green, no LGTM yet, no CHANGES_REQUESTED to address | **skip** |
 | `wait-lgtm-fresh` | LGTM exists but bound to older head SHA (already pushed) | **skip** |
+
+**Advisory comments are not states.** A Reviewer review submitted with
+`gh pr review --comment` (not `--request-changes`) does not put the PR
+into `address-changes` — it's informational. The Coder may read and act
+on such comments at their discretion during a later cycle, but the
+merge gates already protect against silently shipping past them: Gate 5
+requires an explicit `/lgtm` bound to the head SHA, so a PR with only
+`COMMENTED` reviews can never reach merge.
 
 For each issue, derive:
 
