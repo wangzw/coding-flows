@@ -73,9 +73,12 @@ stay required — those are core invariants).
   with **strict two-stage ordering**: process every actionable PR
   (address review comments → fix CI failures → merge) before touching any
   issue. When an item hands off to CI or Reviewer, the cycle rotates to
-  the next actionable item rather than blocking. Iteration frequency comes
-  from the wrapping scheduler (`slock reminder` / `/loop`), not from this
-  skill.
+  the next actionable item rather than blocking. **The scheduler's
+  interval is polling frequency, not a per-cycle time budget**: take
+  however long an item needs (20 min, an hour) before rotating —
+  partial work and draft-PR shortcuts are not part of the workflow.
+  Iteration frequency comes from the wrapping scheduler (`slock
+  reminder` / `/loop`), not from this skill.
 - **Reviewer** — see **[references/reviewer-cycle.md](references/reviewer-cycle.md)**.
   Default-deny adversarial stance. Builds a **local** review plan (under
   `~/.cache/coding-flows/<owner>/<repo>/pr-<N>/`); the plan never touches the PR.

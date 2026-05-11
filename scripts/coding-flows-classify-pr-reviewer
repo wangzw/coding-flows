@@ -42,6 +42,14 @@ trap 'rm -f "$CLASSIFY_TMP"' EXIT
 main() {
   load_pr_view "$@"
 
+  # Step 0: drafts are entirely Coder-owned. Reviewer skips.
+  local is_draft
+  is_draft="$(jq -r '.isDraft // false' <<<"$PR_VIEW_JSON")"
+  if [[ "$is_draft" == "true" ]]; then
+    printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=pr-is-draft\n'
+    return 0
+  fi
+
   # Step 1: is there a current LGTM at all?
   local lgtm_rc=0
   check_lgtm "$PR_VIEW_JSON" >/dev/null 2>&1 || lgtm_rc=$?

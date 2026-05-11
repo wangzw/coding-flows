@@ -7,9 +7,42 @@ items in the same cycle**: whenever an item rotates out of the Coder's hands
 (push → CI; PR opened → Reviewer; merge done), the cycle moves to the next
 actionable item. Work-stealing, not parallel.
 
+## No per-cycle time budget
+
+The scheduler's interval (`/loop 5m`, `--recur "every 5 minutes"`) is the
+*polling frequency* — how often the system checks for new work — **not**
+a wall-clock budget for the current cycle. A cycle picks up an item and
+drives it to its **natural rotation point**:
+
+- `start` → `gh pr create` succeeds (CI is now running, Reviewer can read it)
+- `address-changes` / `address-ci-fail` → `git push` succeeds (CI restarts)
+- `ready-to-merge` → `coding-flows-merge` returns
+- `clarify` → clarification comment posted
+
+If an issue is complex and takes 20 minutes (or longer) to implement,
+test, validate, and open as a ready PR — **take 20 minutes**. Do not
+abandon the work because the scheduler will fire again in 5. The next
+cycle firing observes the lock-file (`.coding-flows.lock` in the
+worktree) and skips overlapping work; it picks up where the current
+cycle leaves off only after the current cycle exits.
+
+In particular, **never push half-finished code or open a draft PR as a
+workaround for cycle-length anxiety**. The merge gates assume the
+Coder's PR represents complete work for every AC; partial PRs that wait
+across cycles for the Coder to "come back later" create stale state
+that no gate covers. The Coder either:
+
+- Finishes the item this cycle (taking however long is needed), OR
+- Determines the issue is genuinely too large or unclear and triggers
+  `needs-human` with reason `ambiguous-issue` / `scope-too-large` — see
+  Phase A1.
+
+## Wrapping scheduler
+
 Iteration frequency is set by the wrapping scheduler
-(`slock reminder schedule --recur "every Xm"` or `/loop Xm`), not by this
-skill. One cycle invocation never sleeps waiting on CI — it just rotates.
+(`slock reminder schedule --recur "every Xm"` or `/loop Xm`), not by
+this skill. The scheduler's only job is to fire periodically; the cycle
+itself decides how long to spend.
 
 ## Pre-flight (every cycle)
 
@@ -158,6 +191,16 @@ For each `start` or `clarify` issue, before opening a worktree:
    - Use `coding-flows-clarification-status <issue>` to determine if the issue
      has progressed to `responded`. Only then re-enter Phase A1; otherwise
      remain parked.
+
+**`size_estimate=large` is not a reason to defer.** A large issue is one
+the Coder can plan in this cycle but should expect to need significant
+implementation time within the SAME cycle. The scheduler's polling
+interval is not a budget — see "No per-cycle time budget" above. Defer
+only when an issue is genuinely *ambiguous* (`ac_clear=no/partial`,
+`test_path_clear=needs-design`) or *unsafe to start unilaterally*
+(`high_risk_paths=true` without explicit operator sign-off). Wall-clock
+time alone is never the reason; the Coder takes the time the issue
+needs.
 
 ## Phase A2 — Bootstrap the Coder plan + worktree
 

@@ -3,7 +3,7 @@
 # Canonical state-machine for the Coder cycle. Emits the single most-
 # actionable state for the PR, on stdout as:
 #
-#   PR_STATE=<one of: address-changes | address-ci-fail
+#   PR_STATE=<one of: wip | address-changes | address-ci-fail
 #                   | ready-to-merge | wait-ci | wait-review | wait-lgtm-fresh>
 #
 # Why this script exists: PRs in the coding-flows model use a *comment*
@@ -15,6 +15,15 @@
 # fields.
 #
 # State precedence (highest first):
+#   0. wip                  — PR is a draft (`isDraft: true`). Drafts
+#                             aren't part of the standard coding-flows
+#                             workflow (the Coder is expected to take
+#                             whatever time the issue needs and open a
+#                             ready PR), but pre-existing or externally-
+#                             created drafts must classify cleanly.
+#                             Coder resumes the worktree, finishes the
+#                             work, marks ready-for-review. Reviewer
+#                             skips drafts entirely.
 #   1. address-changes      — Reviewer marked CHANGES_REQUESTED and the
 #                             review is not superseded by a later /lgtm
 #                             from the same reviewer.
@@ -41,6 +50,17 @@ classify_pr() {
   if ! jq empty <<<"$json" 2>/dev/null; then
     log_error "classify_pr: input not valid JSON"
     return 64
+  fi
+
+  # 0. Draft PR — the Coder owns continuing the work. Skip all gate
+  # checks (drafts can't be merged anyway). Coder resumes the worktree
+  # and pushes more commits; marks ready-for-review when plan is
+  # complete.
+  local is_draft
+  is_draft="$(jq -r '.isDraft // false' <<<"$json")"
+  if [[ "$is_draft" == "true" ]]; then
+    printf 'PR_STATE=wip\n'
+    return 0
   fi
 
   # 1. Unsuperseded CHANGES_REQUESTED — same query as gh-flow-merge Gate 6.

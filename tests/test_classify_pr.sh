@@ -83,6 +83,28 @@ rm -f "$TMP"
 classify_pr "not json" >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "malformed JSON → exit 64" 64 "$rc"
 
+# Test 12.5: draft PR → wip (regardless of LGTM, CI, etc.)
+TMP="$(mktemp)"
+jq '. + {isDraft: true}' "$FIX/lgtm-current.json" > "$TMP"
+assert_eq "draft PR → wip" "wip" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+TMP="$(mktemp)"
+jq '. + {isDraft: true}' "$FIX/merge-ci-fail.json" > "$TMP"
+assert_eq "draft PR with CI failing → wip (drafts win)" "wip" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+TMP="$(mktemp)"
+jq '. + {isDraft: true}' "$FIX/merge-changes-requested.json" > "$TMP"
+assert_eq "draft PR with CHANGES_REQUESTED → wip" "wip" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# isDraft explicitly false → no change to existing behavior
+TMP="$(mktemp)"
+jq '. + {isDraft: false}' "$FIX/lgtm-current.json" > "$TMP"
+assert_eq "non-draft PR → ready-to-merge (unchanged)" "ready-to-merge" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
 # Test 13: empty PR (no comments, no reviews, all empty arrays) — CI is empty,
 # so no FAIL, no PENDING → CI considered green → no LGTM → wait-review.
 TMP="$(mktemp)"

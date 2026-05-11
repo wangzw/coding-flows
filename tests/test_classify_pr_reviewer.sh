@@ -78,4 +78,18 @@ assert_eq "ci-fail: reason" "ci-failing"          "$(reason_of "$FIX/merge-ci-fa
 assert_eq "no-issue: state"  "idle-coder-blocked"      "$(state_of "$FIX/merge-no-issue.json")"
 assert_eq "no-issue: reason" "linked-issue-missing"    "$(reason_of "$FIX/merge-no-issue.json")"
 
+
+# Draft PRs → idle-coder-blocked (Reviewer skips drafts)
+TMP="$(mktemp)"
+jq '. + {isDraft: true}' "$FIX/lgtm-current.json" > "$TMP"
+assert_eq "draft PR: state"  "idle-coder-blocked" "$(state_of "$TMP")"
+assert_eq "draft PR: reason" "pr-is-draft"        "$(reason_of "$TMP")"
+rm -f "$TMP"
+
+# Even drafts with stale or missing LGTMs are still idle-coder-blocked.
+TMP="$(mktemp)"
+jq '. + {isDraft: true}' "$FIX/no-lgtm.json" > "$TMP"
+assert_eq "draft PR no-lgtm: state" "idle-coder-blocked" "$(state_of "$TMP")"
+rm -f "$TMP"
+
 test_summary
