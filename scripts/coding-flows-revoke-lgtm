@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# coding-flows-revoke-lgtm <PR> -m "<body>"
+# coding-flows-revoke-lgtm <PR> --body-file <path>
+# coding-flows-revoke-lgtm <PR> [...] --dry-run
+#
+# Revoke a prior /lgtm and post new findings. Implementation is just
+# `gh pr review <PR> --request-changes --body "<body>"`. This works
+# because:
+#
+#   - `/lgtm` is a comment marker, not a formal `gh pr review --approve`.
+#     GitHub has no concept of "revoking" a comment.
+#   - A subsequent `gh pr review --request-changes` from the same reviewer
+#     becomes their *most-recent review state*. Gate 6 in coding-flows-merge
+#     checks: "for each reviewer with most-recent state = CHANGES_REQUESTED,
+#     no superseding /lgtm comment from them after the review's
+#     submittedAt → block merge".
+#   - So posting --request-changes here is the natural revocation: the
+#     timeline shows /lgtm → --request-changes, and Gate 6 sees the
+#     newer state and blocks merge. The previous /lgtm comment stays in
+#     the PR (it's history), but the gate doesn't honor it.
+#
+# When the Coder pushes a fix and the Reviewer is satisfied, they post a
+# fresh /lgtm bound to the new head SHA — that supersedes the
+# --request-changes per Gate 6's same-author timeline logic, and merge
+# becomes possible again.
+#
+# Body format: write a real `--request-changes` review body per
+# references/pr-comment-format.md — 1-2 sentence summary of what blocks,
+# then bullets with file:line + suggested fix. Do not paste JSON or the
+# local review plan; translate to prose.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+
+usage() {
+  cat <<'EOF' >&2
+Usage:
+  coding-flows-revoke-lgtm <PR> -m "<body>"
+  coding-flows-revoke-lgtm <PR> --body-file <path>
+  coding-flows-revoke-lgtm <PR> [...] --dry-run
+
+Posts a `gh pr review --request-changes` with the given body. Under
+Gate 6's most-recent-state-per-reviewer logic, this supersedes any
+prior /lgtm from the same reviewer and blocks merge until they post a
+fresh /lgtm against a later head SHA.
+EOF
+  exit 64
+}
+
+main() {
+  local pr=""
+  local body=""
+  local body_file=""
+  local dry_run=0
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -m|--message|--body) body="$2"; shift 2 ;;
+      --body-file)         body_file="$2"; shift 2 ;;
+      --dry-run)           dry_run=1; shift ;;
+      -h|--help)           usage ;;
+      *)
+        if [[ -z "$pr" && "$1" =~ ^[0-9]+$ ]]; then
+          pr="$1"; shift
+        else
+          usage
+        fi
+        ;;
+    esac
+  done
+
+  [[ -z "$pr" ]] && usage
+
+  if [[ -n "$body_file" ]]; then
+    [[ -f "$body_file" ]] || { log_error "no such file: $body_file"; exit 64; }
+    body="$(cat "$body_file")"
+  fi
+  [[ -z "$body" ]] && { log_error "missing -m <body> or --body-file"; usage; }
+
+  if [[ $dry_run -eq 1 ]]; then
+    printf 'DRY_RUN=yes\nPR=%s\nACTION=request-changes\nBODY_BYTES=%d\n' \
+      "$pr" "${#body}"
+    return 0
+  fi
+
+  gh pr review "$pr" --request-changes --body "$body"
+  log_info "posted --request-changes on PR #$pr; prior /lgtm now superseded under Gate 6"
+}
+
+main "$@"

@@ -107,9 +107,11 @@ agents **must not** call `gh pr merge` directly.
    Category/Description/Mitigation rows + matching HTML marker.
 10. **Scope envelope** — every changed file is claimed by an AC mapping row,
     a `## Support files` entry, or `scope_envelope.exclude_paths`.
-11. **Test plan complete** — no `- [ ]` unchecked checkboxes left in the
-    PR body's `## Test plan` section. Coder either checks them after
-    manual verification or removes the items.
+11. **Test plan complete** — every bullet in the PR body's `## Test plan`
+    section is explicitly `- [x]`. Plain bullets (no checkbox), `- [ ]`,
+    `- [.]`, or any other non-`[x]` form blocks merge. Coder must either
+    run the manual verification and mark `- [x]`, or remove the entire
+    bullet line.
 
 Full reference: **[references/merge-gates.md](references/merge-gates.md)**.
 
@@ -206,6 +208,7 @@ that takes JSON via stdin or arg (so tests can run with fixtures).
 | `coding-flows-verify-lgtm-coverage`  | Demand `acs=`/`invariants=`/`risks-reviewed=` claims cover Coder's declarations |
 | `coding-flows-classify-pr`           | Coder Phase A: canonical PR state (`address-changes` / `ready-to-merge` / `wait-*`) — use this instead of inspecting `reviewDecision` |
 | `coding-flows-verify-test-plan`      | Gate 11: every `- [ ]` in `## Test plan` is checked or removed |
+| `coding-flows-revoke-lgtm`           | Reviewer: revoke a prior `/lgtm` by posting `--request-changes` with new findings |
 | `coding-flows-fetch-for-reviewer`    | Emit a comment-filtered PR view for dual-reviewer blindness |
 | `coding-flows-worktree-create`       | Open a managed worktree for an issue |
 | `coding-flows-worktree-list`         | List all managed worktrees + branches + heads |

@@ -157,4 +157,60 @@ out="$(verify_test_plan "$body" 2>/dev/null)" && rc=0 || rc=$?
 assert_exit_code "real-pr-pattern: exit 1" 1 "$rc"
 assert_contains  "real-pr-pattern: count 3" "TEST_PLAN_UNCHECKED=3" "$out"
 
+# Test 12: gaming the gate — Coder strips the [ ] checkbox entirely,
+# leaving a plain bullet. Real bug observed on a PR. Must be flagged.
+body='## Test plan
+
+- [x] ran make test
+- Manual: `make dev` → no console warnings
+- Manual: VoiceOver pass
+'
+out="$(verify_test_plan "$body" 2>/dev/null)" && rc=0 || rc=$?
+assert_exit_code "stripped-checkbox: exit 1" 1 "$rc"
+assert_contains  "stripped-checkbox: count 2" "TEST_PLAN_UNCHECKED=2" "$out"
+
+# Test 13: Coder writes [.] / [?] / weird checkbox content → unchecked
+body='## Test plan
+
+- [x] real
+- [.] dot — not a check
+- [?] question mark
+- [ X] leading space inside brackets
+- [X ] trailing space inside brackets
+'
+out="$(verify_test_plan "$body" 2>/dev/null)" && rc=0 || rc=$?
+assert_exit_code "weird-checkbox: exit 1" 1 "$rc"
+assert_contains  "weird-checkbox: 4 unchecked" "TEST_PLAN_UNCHECKED=4" "$out"
+
+# Test 14: [X] (capital) is valid
+body='## Test plan
+
+- [X] capital is fine
+- [x] lowercase too
+'
+verify_test_plan "$body" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "capital-X: exit 0" 0 "$rc"
+
+# Test 15: bullet immediately followed by [x] but no space after → still
+# unchecked-looking. The regex requires a space (or EOL) after the bracket.
+body='## Test plan
+
+- [x]something glued
+'
+# This is `- [x]something` — the [x] has no separator. Treat as unchecked
+# (real check entries always have a space after [x]).
+verify_test_plan "$body" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "no-space-after-bracket: exit 1" 1 "$rc"
+
+# Test 16: bullets mixed with prose — prose ignored, bullets enforced
+body='## Test plan
+
+This PR is mostly automated; manual sanity checks:
+
+- [x] confirmed dialog opens
+- confirmed dialog closes  (← gaming the gate)
+'
+verify_test_plan "$body" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "prose+gamed-bullet: exit 1" 1 "$rc"
+
 test_summary

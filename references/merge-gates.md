@@ -143,22 +143,25 @@ failure with the unclaimed file list in stderr + stdout.
 
 ## Gate 11 — Test plan complete
 
-The PR body's `## Test plan` section must not contain any unchecked
-Markdown checkboxes (`- [ ]`). The Coder fills the test plan with
-manual-verification items they intend to run; leaving any unchecked at
-merge time means the manual work wasn't done.
+Every bullet in the PR body's `## Test plan` section must be an
+**explicit checked checkbox** (`- [x]` or `* [X]`). Anything else —
+`- [ ]`, `- [.]`, `- [?]`, a plain `- foo` with no checkbox at all —
+counts as non-checked and blocks merge.
 
 Rules:
 
 - If the PR body has no `## Test plan` section → pass (opt-in).
-- If the section has no checkboxes (just prose or nothing) → pass.
-- If the section has any `- [ ]` line → fail with the list of unchecked
-  items in stderr.
+- If the section contains only prose (no bullet lines) → pass.
+- If any bullet is not `- [x]` (or `* [X]`) → fail, listing the offending
+  lines in stderr.
 
-To pass after a finding: either run the manual verification and flip
-the box to `- [x]` (with optional inline notes like
-`- [x] manual: confirmed no warnings`), or remove the item entirely if
-it doesn't apply.
+To pass after a finding, the Coder must either:
+
+- run the manual verification and mark the bullet `- [x]` (optionally
+  with notes: `- [x] manual: confirmed no warnings`), OR
+- **remove the entire bullet line**. Stripping just the `[ ]` marker
+  while keeping the description (turning `- [ ] Manual: …` into
+  `- Manual: …`) is gaming the gate — caught here.
 
 Validated by `scripts/coding-flows-verify-test-plan`. Exit code 21 on
 failure.

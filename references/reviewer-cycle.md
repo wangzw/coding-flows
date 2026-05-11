@@ -172,6 +172,43 @@ keep the body short, anchor specifics inline.
 **Never** use `gh pr review --approve` — GitHub will reject self-approval
 and this skill uses the LGTM signal protocol instead.
 
+## Revoking a prior LGTM
+
+If you signed `/lgtm` and later discover the change is incorrect (your
+own re-read, a new constraint that surfaces, or anything else that
+should have blocked you the first time), **revoke the LGTM by posting
+`gh pr review --request-changes`** with your new findings. The script
+wrapper does this in one line:
+
+```
+coding-flows-revoke-lgtm <PR> -m "$(cat <<'EOF'
+Revoking prior /lgtm — I missed that ... .
+
+- src/foo.go:42 — finding + suggested fix
+EOF
+)"
+```
+
+Why this works without an explicit "unlgtm" marker: `/lgtm` is a
+comment, not a formal review. A subsequent `--request-changes` from the
+same reviewer becomes your **most-recent review state** in GitHub's
+timeline. Merge Gate 6 picks the latest review per reviewer; if it's
+`CHANGES_REQUESTED` and you haven't posted a later `/lgtm` to supersede
+it, merge is blocked.
+
+The previous `/lgtm` comment stays in the PR history (don't delete it
+— it's the audit trail). The gate doesn't honor it once you've posted
+`--request-changes`.
+
+When the Coder pushes a fix and you're satisfied, post a **fresh** `/lgtm`
+against the new head SHA. That supersedes the `--request-changes` (per
+Gate 6's same-author timeline logic) and merge becomes possible again.
+
+Body format rules — same as a fresh `--request-changes` review per
+[pr-comment-format.md](pr-comment-format.md): 1-2 sentence summary of
+what blocks `/lgtm`, then bulleted findings with `file:line` + suggested
+fix. Don't paste your local review plan JSON; translate to prose.
+
 ## Phase E — Re-review on new commits
 
 When the Coder pushes new commits after your previous round:

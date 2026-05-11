@@ -226,6 +226,32 @@ other gates (AC mapping, scope envelope, risks, etc.) can still fail.
 
 Tests: `tests/test_classify_pr.sh`.
 
+### `coding-flows-revoke-lgtm`
+
+```
+coding-flows-revoke-lgtm <PR> -m "<body>"
+coding-flows-revoke-lgtm <PR> --body-file <path>
+coding-flows-revoke-lgtm <PR> [...] --dry-run
+```
+
+For when the Reviewer signed `/lgtm` and later finds something
+incorrect. Posts a `gh pr review --request-changes` with the given body.
+
+This works because `/lgtm` is a comment marker, not a formal review:
+- GitHub has no "revoke comment" concept
+- Merge Gate 6 checks the *most-recent review state per reviewer* and
+  blocks merge if it's `CHANGES_REQUESTED` and not superseded by a
+  later `/lgtm`
+- So posting `--request-changes` here becomes the reviewer's newest
+  state and the timeline order means the prior `/lgtm` is no longer
+  honored at the gate
+
+The previous `/lgtm` comment is left in PR history (audit trail). When
+the Coder pushes a fix and the Reviewer is satisfied, a fresh `/lgtm`
+against the new head SHA supersedes the `--request-changes`.
+
+Tests: `tests/test_revoke_lgtm.sh` (CLI smoke + --dry-run output).
+
 ### `coding-flows-fetch-for-reviewer`
 
 ```

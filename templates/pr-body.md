@@ -44,9 +44,12 @@ Closes #<ISSUE>
 
 ## Test plan
 
-<!-- Manual verification steps beyond CI. Every `- [ ]` here must be
-     `- [x]` before merge (Gate 11), or the item must be removed if it
-     doesn't apply. Drop the entire section for PRs that need no manual
-     verification. -->
+<!-- Manual verification steps beyond CI. Every bullet in this section
+     must be `- [x]` before merge (Gate 11). Plain bullets, `- [ ]`,
+     `- [.]`, or any other non-`[x]` form blocks merge — Coder must
+     either run the verification and mark `- [x]`, or remove the entire
+     bullet line (don't strip just the `[ ]`).
+
+     Drop this whole section for PRs with no manual verification. -->
 
 - [ ] …

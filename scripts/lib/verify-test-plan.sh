@@ -1,25 +1,28 @@
 # verify_test_plan <pr-body>
 #
-# Asserts no unchecked Markdown checkboxes (`- [ ]`) remain in the PR
-# body's `## Test plan` section. The template makes the Coder list manual
-# verification steps; leaving them unchecked at merge time means the
-# manual work wasn't done. This gate catches that.
+# Asserts every bullet in the PR body's `## Test plan` section is an
+# explicit checked checkbox (`- [x]`). Anything else — `- [ ]`, `- [.]`,
+# `- [?]`, a plain bullet `- foo` with no checkbox at all — counts as
+# unchecked. The Coder must either:
+#   - run the manual verification and mark `- [x]`, OR
+#   - remove the entire bullet line (don't strip just the `[ ]` checkbox
+#     marker to slip past the gate).
 #
 # Rules:
-#   - If no `## Test plan` section exists → pass (the section is opt-in;
-#     PRs that don't need manual testing may omit it entirely).
-#   - If section exists but contains no `- [ ]` / `- [x]` checkboxes →
-#     pass (vacuous).
-#   - If section exists and any line matches `^[[:space:]]*[-*][[:space:]]+\[ \]`
-#     → fail, list the unchecked items.
+#   - If no `## Test plan` section exists → pass (opt-in; PRs that
+#     don't need manual testing may omit the section entirely).
+#   - If section exists but contains no bullet lines at all (only prose)
+#     → pass (vacuous).
+#   - If section exists and any bullet line is NOT `- [x]` / `* [X]` →
+#     fail, list the offending lines.
 #
 # Output:
 #   TEST_PLAN_UNCHECKED=<count>
-#   (followed by `- ITEM` lines on stderr for each unchecked entry)
+#   (followed by `- ITEM` lines on stderr for each non-checked bullet)
 #
 # Exit codes:
 #   0 — clean.
-#   1 — at least one unchecked checkbox.
+#   1 — at least one non-checked bullet.
 
 # _extract_test_plan_section <body> — emit lines of the `## Test plan`
 # section (until the next `## ` heading or EOF).
@@ -59,11 +62,16 @@ verify_test_plan() {
     return 0
   fi
 
-  # Find unchecked checkboxes. Markdown allows extra inner spaces but the
-  # canonical form is `- [ ]`. Accept `-` or `*` bullets, any leading
-  # whitespace, and a single space inside the brackets.
-  local unchecked
-  unchecked="$(printf '%s\n' "$section" | grep -E '^[[:space:]]*[-*][[:space:]]+\[ \]' || true)"
+  # Find every bullet line, then filter out those that are explicitly
+  # checked (`- [x]` / `* [X]`). The remainder is unchecked — covers
+  # `- [ ]`, `- [.]`, `- [?]`, `- foo` with no checkbox, etc.
+  local all_bullets unchecked
+  all_bullets="$(printf '%s\n' "$section" | grep -E '^[[:space:]]*[-*][[:space:]]+' || true)"
+  if [[ -z "$all_bullets" ]]; then
+    printf 'TEST_PLAN_UNCHECKED=0\n'
+    return 0
+  fi
+  unchecked="$(printf '%s\n' "$all_bullets" | grep -vE '^[[:space:]]*[-*][[:space:]]+\[[xX]\]([[:space:]]|$)' || true)"
 
   if [[ -z "$unchecked" ]]; then
     printf 'TEST_PLAN_UNCHECKED=0\n'
@@ -73,7 +81,7 @@ verify_test_plan() {
   local count
   count="$(printf '%s\n' "$unchecked" | wc -l | tr -d ' ')"
   printf 'TEST_PLAN_UNCHECKED=%s\n' "$count"
-  log_error "test-plan: $count unchecked checkbox(es) in '## Test plan':"
+  log_error "test-plan: $count non-checked bullet(s) in '## Test plan' (must be '- [x]' or removed entirely):"
   while IFS= read -r line; do
     [[ -z "$line" ]] && continue
     log_error "  $line"
