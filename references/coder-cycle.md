@@ -175,6 +175,15 @@ Coder then moves to the next actionable item without waiting:
 Never block the cycle waiting on CI or Reviewer. The next cycle, fired by
 the scheduler N minutes later, picks up changes.
 
+**Rotation is "Skipped", not "Needs human".** When you rotate an item
+out (push → CI, PR opened → awaiting Reviewer), record it in the
+cycle summary's `Skipped:` section with a wait reason (`wait-ci`,
+`wait-review`, `wait-lgtm-fresh`). The Reviewer cycle is a separate
+invocation of this skill, not a human — `Needs human` is reserved for
+items where the [notification protocol](notification-protocol.md) has
+actually fired (label + marker comment). See SKILL.md § "Output
+protocol" for the full list of valid `Needs human` reason tags.
+
 ## Phase A1 — Feasibility check + plan bootstrap (per issue)
 
 For each `start` or `clarify` issue, before opening a worktree:

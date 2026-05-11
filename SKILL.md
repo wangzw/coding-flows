@@ -245,11 +245,39 @@ Processed:
 
 Skipped:
   - PR #K: idle (no new commits since last review)
+  - PR #L: wait-ci (Reviewer will pick up automatically once green)
+  - PR #M: wait-review (waiting for Reviewer cycle)
 
 Needs human:
-  - issue #J  reason=ambiguous-issue   notified=label+marker
-  - PR    #L  reason=repeated-ci-failure  notified=already-labeled
+  - issue #J  reason=ambiguous-issue       notified=label+marker
+  - PR    #L  reason=repeated-ci-failure   notified=already-labeled
 ```
+
+**"Needs human" has a precise meaning** — only items where the cycle
+triggered the [notification protocol](references/notification-protocol.md):
+the `needs-human` label was applied to the issue/PR and a marker comment
+was posted. The human filters their GitHub by `label:needs-human` and
+acts via that channel.
+
+It is NOT a catch-all for "I can't act on this; someone else has to".
+Things that look like that but belong in `Skipped`, not `Needs human`:
+
+- "Reviewer cycle needed on PR #N once CI clears" → **Skipped: wait-ci**.
+  The Reviewer cycle will pick it up automatically when CI is green;
+  no human is needed.
+- "PR has stale LGTM, awaiting reviewer to re-sign" → **Skipped:
+  wait-lgtm-fresh**. Reviewer cycle handles this.
+- "Issue awaiting clarification response from author" → **Skipped:
+  wait-author**. The `needs-human` label is already on the issue from
+  when the question was asked; don't re-report each cycle.
+- "PR is in `wait-review`" → **Skipped**. Reviewer cycle owns next step.
+
+Use `Needs human` only for fresh notifications this cycle triggered
+(reason tags: `ambiguous-issue`, `disagreement`,
+`dual-review-disagreement`, `iteration-cap`, `repeated-ci-failure`,
+`broken-main`, `merge-blocked`, `auth-broken`, `unrelated-dirty-tree`,
+`ac-mapping-unresolvable`, `invariant-violation-unfixable`,
+`scope-too-large`, `scope-mismatch`).
 
 ## Wrapping for continuous monitoring
 
