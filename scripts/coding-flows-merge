@@ -370,6 +370,27 @@ _post_merge_cleanup() {
   worktree_remove "$branch" --merged-via-pr \
     || log_warn "post-merge: worktree_remove for $branch returned non-zero"
 
+  # Defensive remote-branch delete. Observation: `gh pr merge
+  # --delete-branch` is unreliable when its local-branch step fails first
+  # (gh exits non-zero before the remote DELETE is attempted, even though
+  # the merge itself succeeded). Result: ~70 stale remote branches
+  # accumulated across one day's worth of merges. Fix: explicitly DELETE
+  # the remote ref here, idempotently. 404 means already gone — fine.
+  local repo_nwo
+  repo_nwo="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || echo '')"
+  if [[ -n "$repo_nwo" ]]; then
+    local del_out del_rc=0
+    del_out="$(gh api -X DELETE "repos/$repo_nwo/git/refs/heads/$branch" 2>&1)" || del_rc=$?
+    case "$del_rc" in
+      0) log_info "remote branch '$branch' deleted via REST" ;;
+      *) if grep -q 'Reference does not exist\|Branch not found\|Not Found' <<<"$del_out"; then
+           : # Already gone — no warning needed
+         else
+           log_warn "post-merge: remote branch '$branch' delete returned rc=$del_rc: $del_out"
+         fi ;;
+    esac
+  fi
+
   # Clear local plan cache for this PR.
   local pr_cache
   pr_cache="$(repo_state_dir "$pr" 2>/dev/null || true)"

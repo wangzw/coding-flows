@@ -239,13 +239,24 @@ mode. Don't do them:
   they never got worse, the Coder just never started them.
 - **"Deferred — medium-large scope"** — size alone is not a deferral
   reason. See Phase A1 below.
-- **`gh pr create` without `--assignee @me`** — observed: Coder
-  opened PRs #291 and #293 with no assignee. The Reviewer's Phase A
-  query filters by `--assignee`, so the PRs were invisible to the
-  Reviewer. The PRs sat at "no LGTM" forever from the Reviewer's
-  point of view. Always pass `--assignee @me` on `gh pr create` (see
-  Phase D). If you forgot, run `gh pr edit <PR> --add-assignee @me`
-  immediately — same cycle, before rotating away.
+- **`gh pr create` without `--assignee @me`** — observed twice:
+  - Early-day cluster: PRs #291, #293 opened with no assignee. The
+    Reviewer's Phase A query filters by `--assignee`, so the PRs were
+    invisible to Reviewer cycles for hours.
+  - Mid-day regression: starting at PR #417, the Coder dropped both
+    `--assignee @me` on `gh pr create` AND the fallback edit. PRs
+    #417, #419, #421, #423 all opened un-assigned. Same regression
+    on issues: #418, #420, #422 created un-assigned.
+
+  Always pass `--assignee @me` on `gh pr create` AND on `gh issue
+  create`. If you forgot, immediately run:
+  - `gh pr edit <PR> --add-assignee @me`, or
+  - `gh issue edit <N> --add-assignee @me`
+
+  Same cycle, before rotating away. The two queries downstream depend
+  on it: Phase A's `gh issue list --assignee @me` and the Reviewer's
+  `gh pr list --assignee @me`. An un-assigned item is invisible to
+  the next cycle.
 - **`out-of-scope` with "this cycle" suffix** — observed: a cycle
   picked one Stage 2 issue (#292) and marked the other 10 open issues
   `out-of-scope this cycle`. `out-of-scope` is permanent ("not for the
@@ -391,6 +402,21 @@ coding-flows-coder-plan validate <branch>
 
 # Render plan → PR body sections
 RENDERED="$(coding-flows-coder-plan render <branch>)"
+
+# OPTIONAL — focused Closes-target issue (multi-issue umbrella case).
+# If the work doesn't map cleanly onto a single existing issue and you
+# want to file a focused tracker for the PR's `Closes #N`, do it here.
+# --assignee @me is MANDATORY: a downstream Phase A `gh issue list
+# --assignee @me` won't see an unassigned issue, and the cycle output
+# protocol's full-coverage rule then can't account for it.
+FOCUS_ISSUE_URL="$(gh issue create --assignee @me \
+  --title "..." \
+  --body "...")"
+FOCUS_NUM="${FOCUS_ISSUE_URL##*/}"
+# Same belt-and-suspenders fallback as the PR side:
+if [[ -z "$(gh issue view "$FOCUS_NUM" --json assignees --jq '.assignees[].login' | head -n1)" ]]; then
+  gh issue edit "$FOCUS_NUM" --add-assignee @me
+fi
 
 git push -u origin <branch>
 # IMPORTANT: --assignee @me is mandatory. Without it the Reviewer's
