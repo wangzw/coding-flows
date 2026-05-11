@@ -121,7 +121,29 @@ body='## Test plan
 verify_test_plan "$body" >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "section-boundary: exit 0" 0 "$rc"
 
-# Test 11: the actual failure mode that motivated this gate — PR #253
+# Test 11a: header variants — all should be recognized as the section
+for header in \
+  '## Test plan' \
+  '## Test Plan' \
+  '## Test plan / rollout' \
+  '## Test plan: smoke + manual' \
+  '## Test plan.' ; do
+  body="$header"$'\n\n- [ ] one unchecked item\n'
+  verify_test_plan "$body" >/dev/null 2>&1 && rc=0 || rc=$?
+  assert_exit_code "header variant '$header' recognized → fail" 1 "$rc"
+done
+
+# Test 11b: looks-like-Test-plan but isn't (should NOT be recognized)
+for header in \
+  '## Test plans (plural)' \
+  '## Test planning' \
+  '## Testplan' ; do
+  body="$header"$'\n\n- [ ] would be unchecked if section matched\n'
+  verify_test_plan "$body" >/dev/null 2>&1 && rc=0 || rc=$?
+  assert_exit_code "header variant '$header' NOT recognized → pass" 0 "$rc"
+done
+
+# Test 11c: the actual failure mode that motivated this gate — PR #253
 # pattern: many checked + a few unchecked manual verification items.
 body='## Test plan
 

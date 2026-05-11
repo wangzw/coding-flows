@@ -174,7 +174,7 @@ for reason tags (`ambiguous-issue`, `disagreement`, `iteration-cap`,
 ## Hard guardrails
 
 - **Never** run `gh pr review --approve` on a PR authored by the same user.
-- **Never** merge except through `scripts/coding-flows-merge` — it enforces all 8 gates.
+- **Never** merge except through `scripts/coding-flows-merge` — it enforces all 11 gates.
 - **Never** force-push to a branch with open Reviewer comments not yet addressed.
   Use additional commits.
 - **Never** close an issue you can't actually fix; comment instead.

@@ -23,12 +23,23 @@
 
 # _extract_test_plan_section <body> — emit lines of the `## Test plan`
 # section (until the next `## ` heading or EOF).
+#
+# Header match is lenient on the suffix: anything non-alphanumeric or EOL
+# after `plan` counts as the boundary. So `## Test plan`, `## Test plan: …`,
+# `## Test plan / rollout`, `## Test plan.` all match. Doesn't match
+# `## Test plans`, `## Test planning`, etc. (the trailing char must not be
+# a word char).
+#
+# Known limitation: doesn't track Markdown fenced code blocks. A literal
+# `- [ ]` inside a ```fenced ... ``` block within `## Test plan` would
+# be treated as an unchecked item. Real test plans use prose for items,
+# not code samples, so this is documented rather than worked around.
 _extract_test_plan_section() {
   awk '
     BEGIN { in_sec=0 }
     /^##[[:space:]]/ {
       lc = tolower($0)
-      if (lc ~ /^## *test[[:space:]]+plan([[:space:]]|$|\/)/) {
+      if (lc ~ /^## *test[[:space:]]+plan([^[:alnum:]_]|$)/) {
         in_sec = 1
         next
       }

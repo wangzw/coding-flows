@@ -318,10 +318,10 @@ cd "$(coding-flows-worktree-path <branch>)"
 scripts/coding-flows-merge <PR>
 ```
 
-Never call `gh pr merge` directly. The script enforces all 8 gates, and on
-success cleans up: removes the worktree, deletes the local branch, clears
-`~/.cache/coding-flows/<owner>/<repo>/pr-<N>/`. Use `--keep-worktree` if you
-want to inspect the branch state post-merge.
+Never call `gh pr merge` directly. The script enforces all 11 gates, and
+on success cleans up: removes the worktree, deletes the local branch,
+clears `~/.cache/coding-flows/<owner>/<repo>/pr-<N>/`. Use
+`--keep-worktree` if you want to inspect the branch state post-merge.
 
 After merge, the script posts a one-line "Shipped" comment on the linked
 issue. The item is complete.
