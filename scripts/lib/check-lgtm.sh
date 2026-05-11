@@ -33,22 +33,46 @@ check_lgtm() {
     return 64
   fi
 
-  # The marker regex tolerates extra whitespace and is order-independent on
-  # the four key=value fields. jq's PCRE supports named captures; we capture
-  # the full body and let bash extract fields after.
+  # Gather LGTM markers with their createdAt timestamps so we can later
+  # supersede them by revoke markers (per-reviewer, latest signal wins).
   local lines
   lines="$(
     jq -r '
       (.comments // [])
       | sort_by(.createdAt) | reverse
       | .[]
-      | select((.body // "" | split("\n") | map(select(test("\\S"))) | .[0] // "") == "/lgtm")
-      | select((.body // "") | test("<!--[[:space:]]*coding-flows:lgtm[[:space:]].*-->"))
-      | .body
-      | capture("<!--[[:space:]]*coding-flows:lgtm[[:space:]]+(?<fields>[^>]*)-->")
-      | .fields
+      | . as $c
+      | select(($c.body // "" | split("\n") | map(select(test("\\S"))) | .[0] // "") == "/lgtm")
+      | select(($c.body // "") | test("<!--[[:space:]]*coding-flows:lgtm[[:space:]].*-->"))
+      | ($c.body | capture("<!--[[:space:]]*coding-flows:lgtm[[:space:]]+(?<fields>[^>]*)-->"))
+      | "\(.fields)\t\($c.createdAt // "")"
     ' <<<"$json" 2>/dev/null || true
   )"
+
+  # Gather revoke markers — per-reviewer latest revoke timestamp. A revoke
+  # supersedes any /lgtm from the same reviewer posted at or before that
+  # timestamp; the Reviewer must post a fresh /lgtm later to re-approve.
+  local revoke_lines
+  revoke_lines="$(
+    jq -r '
+      (.comments // [])
+      | .[]
+      | . as $c
+      | select(($c.body // "") | test("<!--[[:space:]]*coding-flows:revoke-lgtm[[:space:]]+reviewer=[^[:space:]>]+[[:space:]]*-->"))
+      | ($c.body | capture("<!--[[:space:]]*coding-flows:revoke-lgtm[[:space:]]+reviewer=(?<reviewer>[^[:space:]>]+)[[:space:]]*-->"))
+      | "\(.reviewer)\t\($c.createdAt // "")"
+    ' <<<"$json" 2>/dev/null || true
+  )"
+
+  # Build a per-reviewer "latest revoke timestamp" map.
+  declare -A revoke_ts=()
+  local revoke_reviewer revoke_when
+  while IFS=$'\t' read -r revoke_reviewer revoke_when; do
+    [[ -z "$revoke_reviewer" ]] && continue
+    if [[ -z "${revoke_ts[$revoke_reviewer]:-}" ]] || [[ "$revoke_when" > "${revoke_ts[$revoke_reviewer]}" ]]; then
+      revoke_ts[$revoke_reviewer]="$revoke_when"
+    fi
+  done <<< "$revoke_lines"
 
   if [[ -z "$lines" ]]; then
     printf 'LGTM_COUNT=0\nLGTM_REVIEWERS=\nLGTM_SHA=\nLGTM_ACS=\nLGTM_INVARIANTS=\nLGTM_RISKS_REVIEWED=\nSTALE=no\n'
@@ -60,7 +84,8 @@ check_lgtm() {
   local count_current=0
   local acs_union="" inv_union="" risks_union=""
 
-  while IFS= read -r fields; do
+  local lgtm_when
+  while IFS=$'\t' read -r fields lgtm_when; do
     [[ -z "$fields" ]] && continue
     local sha reviewer acs invs risks_rev
     sha="$(_kv "$fields" sha)"
@@ -76,6 +101,12 @@ check_lgtm() {
     if ! grep -qE '(^|[[:space:]])invariants=' <<<"$fields"; then continue; fi
     # risks-reviewed is optional in the marker for backwards compat; treat
     # missing as empty.
+
+    # Revoke supersession: if this reviewer has a revoke marker posted
+    # AFTER this /lgtm, skip — the /lgtm is withdrawn.
+    if [[ -n "${revoke_ts[$reviewer]:-}" ]] && [[ "${revoke_ts[$reviewer]}" > "$lgtm_when" ]]; then
+      continue
+    fi
 
     [[ -z "$most_recent_sha" ]] && most_recent_sha="$sha"
     if [[ "$sha" == "$head_sha" ]]; then

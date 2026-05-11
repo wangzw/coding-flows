@@ -309,6 +309,27 @@ Then:
 If review-feedback prose has line-anchored points, use inline reply via
 `gh api` — see [pr-comment-format.md](pr-comment-format.md).
 
+### Gate failures during Phase F's `--dry-run` are signals, not obstacles to evade
+
+When `coding-flows-merge --dry-run` reports a gate failure, the fix is
+to **do the underlying work**, not to mutate the PR body until the gate
+stops complaining. Common evasion patterns to NOT use:
+
+- **Gate 11 (test plan)**: never strip the `[ ]` from `- [ ] item` to
+  produce a plain `- item` bullet — Gate 11 catches that too. Either
+  actually run the manual verification and mark `- [x]`, OR remove the
+  entire bullet line if the item no longer applies.
+- **Gate 9 (risks)**: never change a risk's `Category` to `none` to slip
+  past the validator — the category enum exists so Reviewer's
+  `risks-reviewed=` covers the real categories declared.
+- **Gate 10 (scope envelope)**: never add unrelated changed files to
+  `## Support files` purely to silence the gate — file follow-up issues
+  and split the PR instead.
+- **Gate 4 (LGTM coverage)** is Reviewer-side; Coder cannot fix this by
+  editing the PR body. Flag as `needs-human` and wait for the Reviewer
+  to re-sign with canonical coverage values (see
+  [reviewer-cycle.md](reviewer-cycle.md) §"Outcome 1").
+
 **Rotation**: after `git push` the PR is back in `wait-ci` / `wait-review`.
 
 ## Phase F — Merge (when `ready-to-merge`)

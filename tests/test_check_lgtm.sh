@@ -75,4 +75,55 @@ out="$(check_lgtm "$malformed" 2>/dev/null)" && rc=0 || rc=$?
 assert_exit_code "empty-values: exit 0" 0 "$rc"
 assert_contains  "empty-values: COUNT=1" "LGTM_COUNT=1" "$out"
 
+# --- Revoke marker handling ----------------------------------------------
+
+# Test 10: revoke marker supersedes an earlier /lgtm from the same reviewer.
+malformed='{
+  "headRefOid":"h",
+  "comments":[
+    {"createdAt":"2025-01-01T10:00:00Z","body":"/lgtm\n\n<!-- coding-flows:lgtm sha=h reviewer=r1 acs=AC-1 invariants= -->\nlgtm"},
+    {"createdAt":"2025-01-01T11:00:00Z","body":"<!-- coding-flows:revoke-lgtm reviewer=r1 -->\nRevoking. found a bug"}
+  ]
+}'
+out="$(check_lgtm "$malformed" 2>/dev/null)" && rc=0 || rc=$?
+assert_exit_code "revoke-supersedes: exit 1 (no current LGTM)" 1 "$rc"
+assert_contains  "revoke-supersedes: COUNT=0" "LGTM_COUNT=0" "$out"
+
+# Test 11: fresh /lgtm posted AFTER a revoke re-instates approval.
+malformed='{
+  "headRefOid":"h",
+  "comments":[
+    {"createdAt":"2025-01-01T10:00:00Z","body":"/lgtm\n\n<!-- coding-flows:lgtm sha=h reviewer=r1 acs=AC-1 invariants= -->\nlgtm"},
+    {"createdAt":"2025-01-01T11:00:00Z","body":"<!-- coding-flows:revoke-lgtm reviewer=r1 -->\nRevoking"},
+    {"createdAt":"2025-01-01T12:00:00Z","body":"/lgtm\n\n<!-- coding-flows:lgtm sha=h reviewer=r1 acs=AC-1 invariants= -->\nlgtm again after fix"}
+  ]
+}'
+out="$(check_lgtm "$malformed" 2>/dev/null)" && rc=0 || rc=$?
+assert_exit_code "lgtm-after-revoke: exit 0" 0 "$rc"
+assert_contains  "lgtm-after-revoke: COUNT=1" "LGTM_COUNT=1" "$out"
+
+# Test 12: revoke from a different reviewer doesn't supersede.
+malformed='{
+  "headRefOid":"h",
+  "comments":[
+    {"createdAt":"2025-01-01T10:00:00Z","body":"/lgtm\n\n<!-- coding-flows:lgtm sha=h reviewer=r1 acs=AC-1 invariants= -->\nlgtm from r1"},
+    {"createdAt":"2025-01-01T11:00:00Z","body":"<!-- coding-flows:revoke-lgtm reviewer=r2 -->\nrevoke by r2 who never LGTMd"}
+  ]
+}'
+out="$(check_lgtm "$malformed" 2>/dev/null)" && rc=0 || rc=$?
+assert_exit_code "cross-reviewer-revoke: exit 0" 0 "$rc"
+assert_contains  "cross-reviewer-revoke: r1 still listed" "LGTM_REVIEWERS=r1" "$out"
+
+# Test 13: revoke BEFORE the /lgtm doesn't supersede (revoke is in the past).
+malformed='{
+  "headRefOid":"h",
+  "comments":[
+    {"createdAt":"2025-01-01T10:00:00Z","body":"<!-- coding-flows:revoke-lgtm reviewer=r1 -->\nold revoke"},
+    {"createdAt":"2025-01-01T11:00:00Z","body":"/lgtm\n\n<!-- coding-flows:lgtm sha=h reviewer=r1 acs=AC-1 invariants= -->\nfresh lgtm"}
+  ]
+}'
+out="$(check_lgtm "$malformed" 2>/dev/null)" && rc=0 || rc=$?
+assert_exit_code "older-revoke: exit 0" 0 "$rc"
+assert_contains  "older-revoke: COUNT=1" "LGTM_COUNT=1" "$out"
+
 test_summary

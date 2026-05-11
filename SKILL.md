@@ -208,7 +208,8 @@ that takes JSON via stdin or arg (so tests can run with fixtures).
 | `coding-flows-verify-lgtm-coverage`  | Demand `acs=`/`invariants=`/`risks-reviewed=` claims cover Coder's declarations |
 | `coding-flows-classify-pr`           | Coder Phase A: canonical PR state (`address-changes` / `ready-to-merge` / `wait-*`) — use this instead of inspecting `reviewDecision` |
 | `coding-flows-verify-test-plan`      | Gate 11: every `- [ ]` in `## Test plan` is checked or removed |
-| `coding-flows-revoke-lgtm`           | Reviewer: revoke a prior `/lgtm` by posting `--request-changes` with new findings |
+| `coding-flows-show-coverage`         | Emit exact `acs=`/`invariants=`/`risks-reviewed=` values for the Reviewer's LGTM marker |
+| `coding-flows-revoke-lgtm`           | Reviewer: post a top-level comment with revoke marker (works on self-PRs; supersedes prior `/lgtm` via `check-lgtm`) |
 | `coding-flows-fetch-for-reviewer`    | Emit a comment-filtered PR view for dual-reviewer blindness |
 | `coding-flows-worktree-create`       | Open a managed worktree for an issue |
 | `coding-flows-worktree-list`         | List all managed worktrees + branches + heads |

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# CLI smoke test for scripts/coding-flows-revoke-lgtm. We can't easily
-# exercise the real gh pr review call without a live repo, so we test
-# arg parsing + --dry-run output.
+# CLI smoke test for scripts/coding-flows-revoke-lgtm. Exercises arg
+# parsing + --dry-run output; the actual gh pr comment call isn't tested
+# (needs a live repo).
 set -uo pipefail
 
 TEST_FILE="test_revoke_lgtm.sh"
@@ -16,29 +16,32 @@ source "$THIS_DIR/lib/assert.sh"
 
 CLI="$SKILL_DIR/scripts/coding-flows-revoke-lgtm"
 
-# Test 1: missing PR + body → usage error
+# Test 1: missing PR → usage error
 "$CLI" >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "no args: exit 64" 64 "$rc"
 
-# Test 2: PR but no body → usage error
-"$CLI" 123 >/dev/null 2>&1 && rc=0 || rc=$?
+# Test 2: PR but no --reviewer → usage error
+"$CLI" 123 -m "x" >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "missing --reviewer: exit 64" 64 "$rc"
+
+# Test 3: PR + --reviewer but no body → usage error
+"$CLI" 123 --reviewer r1 >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "no body: exit 64" 64 "$rc"
 
-# Test 3: --dry-run prints structured output, no gh call
-out="$("$CLI" 253 -m "Revoking — found bug in foo.go:42" --dry-run 2>/dev/null)"
+# Test 4: --dry-run prints structured output
+out="$("$CLI" 253 --reviewer r1 -m "found bug in foo.go:42" --dry-run 2>/dev/null)"
 rc=$?
 assert_exit_code "dry-run: exit 0" 0 "$rc"
 assert_contains  "dry-run: PR= line" "PR=253" "$out"
-assert_contains  "dry-run: action" "ACTION=request-changes" "$out"
+assert_contains  "dry-run: reviewer" "REVIEWER=r1" "$out"
+assert_contains  "dry-run: action" "ACTION=comment-with-revoke-marker" "$out"
 assert_contains  "dry-run: byte count" "BODY_BYTES=" "$out"
 assert_contains  "dry-run: marker" "DRY_RUN=yes" "$out"
 
-# Test 4: --body-file works (just check the script accepts the file path
-# and emits a non-zero byte count — `$(cat ...)` strips trailing newlines
-# so exact byte-count parity with `wc -c` isn't meaningful)
+# Test 5: --body-file works (just check positive byte count)
 TMP="$(mktemp)"
-printf 'Revoking. Bug at:\n- src/foo.go:42 — null deref.\n' > "$TMP"
-out="$("$CLI" 253 --body-file "$TMP" --dry-run 2>/dev/null)"
+printf 'Found bug at:\n- src/foo.go:42 — null deref.\n' > "$TMP"
+out="$("$CLI" 253 --reviewer r1 --body-file "$TMP" --dry-run 2>/dev/null)"
 rc=$?
 assert_exit_code "body-file: exit 0" 0 "$rc"
 body_bytes_line="$(printf '%s\n' "$out" | grep -E '^BODY_BYTES=')"
@@ -52,24 +55,24 @@ else
 fi
 rm -f "$TMP"
 
-# Test 5: --body-file pointing nowhere → error
-"$CLI" 253 --body-file /nonexistent --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+# Test 6: --body-file pointing nowhere → error
+"$CLI" 253 --reviewer r1 --body-file /nonexistent --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "missing-file: exit 64" 64 "$rc"
 
-# Test 6: -m alias works
-"$CLI" 253 -m "x" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+# Test 7: -m alias works
+"$CLI" 253 --reviewer r1 -m "x" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "-m alias: exit 0" 0 "$rc"
 
-# Test 7: --message alias works
-"$CLI" 253 --message "x" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+# Test 8: --message alias works
+"$CLI" 253 --reviewer r1 --message "x" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "--message alias: exit 0" 0 "$rc"
 
-# Test 8: --body alias works
-"$CLI" 253 --body "x" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+# Test 9: --body alias works
+"$CLI" 253 --reviewer r1 --body "x" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "--body alias: exit 0" 0 "$rc"
 
-# Test 9: non-numeric PR → usage error
-"$CLI" abc -m "x" >/dev/null 2>&1 && rc=0 || rc=$?
+# Test 10: non-numeric PR → usage error
+"$CLI" abc --reviewer r1 -m "x" >/dev/null 2>&1 && rc=0 || rc=$?
 assert_exit_code "non-numeric PR: exit 64" 64 "$rc"
 
 test_summary

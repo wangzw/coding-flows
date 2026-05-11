@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# coding-flows-show-coverage <PR>
+# coding-flows-show-coverage --from-file <pr-view-json>
+#
+# Emit the exact values the Reviewer's /lgtm marker must claim:
+#   EXPECTED_ACS=...
+#   EXPECTED_INVARIANTS=...
+#   EXPECTED_RISKS_REVIEWED=...
+#
+# Reviewer copies these into the marker literally — no guessing whether
+# `risks-reviewed=` should be enum categories or descriptive labels (it's
+# always the enum categories from the PR body's risks marker).
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/verify-ac-mapping.sh
+source "$SCRIPT_DIR/lib/verify-ac-mapping.sh"
+# shellcheck source=lib/verify-risks.sh
+source "$SCRIPT_DIR/lib/verify-risks.sh"
+# shellcheck source=lib/show-coverage.sh
+source "$SCRIPT_DIR/lib/show-coverage.sh"
+
+main() {
+  load_pr_view "$@"
+  show_coverage "$PR_VIEW_JSON"
+}
+
+main "$@"

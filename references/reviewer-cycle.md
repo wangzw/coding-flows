@@ -136,6 +136,24 @@ edge cases, any caveats.>
 
 The HTML-comment marker is parsed by `scripts/coding-flows-verify-lgtm-coverage`.
 It must include all four fields (`sha`, `reviewer`, `acs`, `invariants`).
+
+**Marker values are enum identifiers, not prose.** A common failure mode:
+the Reviewer writes descriptive labels like
+`risks-reviewed=stacked-modals,dom-mutation-outside-react` instead of the
+enum categories the Coder declared (`migration | feature-flag | secret |
+perf | external-side-effect | compat-break`). Gate 4 then blocks merge
+because the claimed set doesn't match the declared categories.
+
+Before composing the marker, run:
+
+```
+coding-flows-show-coverage <PR>
+```
+
+It emits the exact values for `acs=`, `invariants=`, and
+`risks-reviewed=` based on what the Coder declared in the PR body and
+what the diff triggers. Copy them in literally — no transformation
+needed.
 Empty `acs=` / `invariants=` values are allowed only when the PR truly has
 no AC mapping rows or no triggered invariants.
 

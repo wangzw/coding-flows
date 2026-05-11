@@ -226,31 +226,63 @@ other gates (AC mapping, scope envelope, risks, etc.) can still fail.
 
 Tests: `tests/test_classify_pr.sh`.
 
+### `coding-flows-show-coverage`
+
+```
+coding-flows-show-coverage <PR>
+coding-flows-show-coverage --from-file <pr-view-json>
+```
+
+Emit the exact values the Reviewer's LGTM marker must claim:
+
+```
+EXPECTED_ACS=AC-1,AC-2,AC-3
+EXPECTED_INVARIANTS=events-before-publish
+EXPECTED_RISKS_REVIEWED=migration,perf
+```
+
+Reviewer agents have been observed writing descriptive labels in
+`risks-reviewed=` (e.g. `stacked-modals,dom-mutation-outside-react`)
+instead of the enum categories from the PR body's
+`<!-- coding-flows:risks categories=... -->` marker. Gate 4 then
+correctly blocks merge but doesn't give the Reviewer the *expected*
+value. This script does.
+
+The Reviewer should run this before composing the LGTM marker and copy
+the values literally.
+
+Tests: `tests/test_show_coverage.sh`.
+
 ### `coding-flows-revoke-lgtm`
 
 ```
-coding-flows-revoke-lgtm <PR> -m "<body>"
-coding-flows-revoke-lgtm <PR> --body-file <path>
-coding-flows-revoke-lgtm <PR> [...] --dry-run
+coding-flows-revoke-lgtm <PR> --reviewer <id> -m "<body>"
+coding-flows-revoke-lgtm <PR> --reviewer <id> --body-file <path>
+coding-flows-revoke-lgtm <PR> --reviewer <id> [...] --dry-run
 ```
 
 For when the Reviewer signed `/lgtm` and later finds something
-incorrect. Posts a `gh pr review --request-changes` with the given body.
+incorrect. Posts a top-level PR comment carrying a
+`<!-- coding-flows:revoke-lgtm reviewer=<id> -->` marker.
 
-This works because `/lgtm` is a comment marker, not a formal review:
-- GitHub has no "revoke comment" concept
-- Merge Gate 6 checks the *most-recent review state per reviewer* and
-  blocks merge if it's `CHANGES_REQUESTED` and not superseded by a
-  later `/lgtm`
-- So posting `--request-changes` here becomes the reviewer's newest
-  state and the timeline order means the prior `/lgtm` is no longer
-  honored at the gate
+`check-lgtm` honors this marker: any `/lgtm` from the same reviewer
+posted *before* the revoke timestamp is filtered out. A fresh `/lgtm`
+posted *after* the revoke re-instates approval. Gate 4/5 then correctly
+sees the revoke and blocks merge until the Coder fixes + Reviewer
+re-signs.
 
-The previous `/lgtm` comment is left in PR history (audit trail). When
-the Coder pushes a fix and the Reviewer is satisfied, a fresh `/lgtm`
-against the new head SHA supersedes the `--request-changes`.
+Why a comment instead of `gh pr review --request-changes`: in self-PR
+mode (Coder and Reviewer share one gh login), GitHub rejects formal
+review verbs with "Pull request cannot be reviewed by the author". Top-
+level comments are always allowed and carry our marker without
+friction.
 
-Tests: `tests/test_revoke_lgtm.sh` (CLI smoke + --dry-run output).
+The `--reviewer <id>` flag must match the id used in the original
+`/lgtm` marker (typically `r1`, or `r2` for dual-review high-risk PRs).
+Otherwise the supersession doesn't match.
+
+Tests: `tests/test_revoke_lgtm.sh` + revoke supersession cases in
+`tests/test_check_lgtm.sh`.
 
 ### `coding-flows-fetch-for-reviewer`
 
