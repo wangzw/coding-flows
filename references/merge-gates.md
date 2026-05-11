@@ -1,13 +1,28 @@
 # Merge gates
 
-All 12 gates are enforced mechanically by `scripts/coding-flows-merge`. Agents
+All 13 gates are enforced mechanically by `scripts/coding-flows-merge`. Agents
 must never call `gh pr merge` directly.
 
-Gates 1–8 are Reviewer-and-handoff oriented; Gates 9–12 are Coder-quality
-gates (declared risks, scope tightness, test-plan completion, issue↔PR
-AC parity) and run before Gate 4 so the Reviewer's coverage check
-(Gate 4) operates on a PR body that already satisfies structure
-requirements.
+Gate 0 is a pre-flight mergability check. Gates 1–8 are
+Reviewer-and-handoff oriented; Gates 9–12 are Coder-quality gates
+(declared risks, scope tightness, test-plan completion, issue↔PR AC
+parity) and run before Gate 4 so the Reviewer's coverage check (Gate 4)
+operates on a PR body that already satisfies structure requirements.
+
+## Gate 0 — No merge conflict
+
+`gh pr view <PR> --json mergeable` must not be `CONFLICTING`. If it is,
+the merge would fail at GitHub's GraphQL level after every other gate
+passed (observed in the field — merge gate reported "all gates pass"
+followed by `gh pr merge` returning a generic GraphQL "Pull Request has
+merge conflicts" error). Gate 0 catches it upfront and tells the Coder
+to rebase + force-push.
+
+`UNKNOWN` (GitHub eventual-consistency value, common right after a
+rebase or first-load) is treated as a pass — `gh pr merge` will surface
+the real state if it turns out to be CONFLICTING.
+
+Exit code 23.
 
 ## Gate 1 — CI green
 

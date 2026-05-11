@@ -3,7 +3,7 @@
 # Canonical state-machine for the Coder cycle. Emits the single most-
 # actionable state for the PR, on stdout as:
 #
-#   PR_STATE=<one of: wip | address-changes | address-ci-fail
+#   PR_STATE=<one of: wip | address-changes | address-ci-fail | merge-conflict
 #                   | ready-to-merge | wait-ci | wait-review | wait-lgtm-fresh>
 #
 # Why this script exists: PRs in the coding-flows model use a *comment*
@@ -28,17 +28,22 @@
 #                             review is not superseded by a later /lgtm
 #                             from the same reviewer.
 #   2. address-ci-fail      — any required check is FAILURE/ERROR/CANCELLED.
-#   3. wait-ci              — any required check is in progress / pending
+#   3. merge-conflict       — `.mergeable == "CONFLICTING"`. Coder must
+#                             rebase onto base and force-push. Ranks
+#                             below CI-fail (CI is usually faster to
+#                             fix) but above wait-* states because the
+#                             merge can't proceed at all otherwise.
+#   4. wait-ci              — any required check is in progress / pending
 #                             / queued / waiting / expected.
-#   4. ready-to-merge       — CI green, a valid /lgtm marker exists and is
+#   5. ready-to-merge       — CI green, a valid /lgtm marker exists and is
 #                             bound to the current head SHA. (The agent
 #                             should still confirm with
 #                             `coding-flows-merge --dry-run` before merging
 #                             — Gate failures beyond CI/LGTM are surfaced
 #                             there.)
-#   5. wait-lgtm-fresh      — CI green, /lgtm exists but bound to an older
+#   6. wait-lgtm-fresh      — CI green, /lgtm exists but bound to an older
 #                             head SHA (Coder pushed since).
-#   6. wait-review          — CI green, no valid /lgtm marker at all.
+#   7. wait-review          — CI green, no valid /lgtm marker at all.
 #
 # Exit codes:
 #   0  — state emitted on stdout.
@@ -102,7 +107,17 @@ classify_pr() {
     return 0
   fi
 
-  # 3. CI in progress. PENDING, IN_PROGRESS, QUEUED, WAITING, EXPECTED,
+  # 3. Merge conflict — GitHub's mergeable is CONFLICTING. UNKNOWN is
+  # eventual-consistency ("GitHub hasn't computed yet"); proceed and
+  # let downstream gates / gh pr merge resolve the ambiguity.
+  local mergeable
+  mergeable="$(jq -r '.mergeable // "UNKNOWN"' <<<"$json")"
+  if [[ "$mergeable" == "CONFLICTING" ]]; then
+    printf 'PR_STATE=merge-conflict\n'
+    return 0
+  fi
+
+  # 4. CI in progress. PENDING, IN_PROGRESS, QUEUED, WAITING, EXPECTED,
   # ACTION_REQUIRED (someone has to do something — treat as wait, not fail),
   # STALE (re-run needed — wait for it).
   local ci_pending

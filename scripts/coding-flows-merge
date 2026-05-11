@@ -55,6 +55,7 @@ EC_SCOPE_ENVELOPE=19
 EC_RISKS=20
 EC_TEST_PLAN=21
 EC_ISSUE_AC_PARITY=22
+EC_MERGE_CONFLICT=23
 
 main() {
   local dry_run=0
@@ -69,6 +70,18 @@ main() {
   done
 
   load_pr_view "${args[@]}"
+
+  # Gate 0 — no merge conflict. gh pr merge will fail with a GraphQL
+  # error if the PR has conflicts; catch it upfront so the Coder gets
+  # a clear "rebase + force-push" signal instead of an opaque post-gate
+  # failure. UNKNOWN is GitHub's eventual-consistency value (rebase
+  # recently or first-load); proceed and let gh's own check decide.
+  local mergeable
+  mergeable="$(jq -r '.mergeable // "UNKNOWN"' <<<"$PR_VIEW_JSON")"
+  if [[ "$mergeable" == "CONFLICTING" ]]; then
+    log_error "Gate 0 (merge-conflict): PR has merge conflicts with base branch — rebase onto origin/<base> and force-push"
+    return $EC_MERGE_CONFLICT
+  fi
 
   # Gate 1 — CI green
   local failing_checks

@@ -82,7 +82,7 @@ sat untouched for 15+ cycles).
 
 ```
 gh pr list --assignee <acting_user> --state open \
-  --json number,title,headRefName,headRefOid,labels,reviewDecision,statusCheckRollup,isDraft
+  --json number,title,headRefName,headRefOid,labels,reviewDecision,statusCheckRollup,isDraft,mergeable
 gh issue list --assignee <acting_user> --state open \
   --json number,title,labels,body,author,url
 ```

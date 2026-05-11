@@ -133,4 +133,26 @@ jq '.merge.method = "rebase"' "$CFG" > "$TMP_CFG_DIR/.coding-flows.json"
 assert_exit_code "rebase-allowed: exit 0" 0 "$rc"
 rm -rf "$TMP_CFG_DIR"
 
+# Test 14: mergeable=CONFLICTING → exit 23 (merge-conflict). Otherwise
+# this fixture would pass all other gates, so the conflict is the only
+# blocker — confirms Gate 0 fires first.
+TMP_FIX="$(mktemp)"
+jq '. + {mergeable: "CONFLICTING"}' "$FIX/coverage-complete.json" > "$TMP_FIX"
+"$MERGE" --from-file "$TMP_FIX" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "merge-conflict: exit 23" 23 "$rc"
+rm -f "$TMP_FIX"
+
+# Test 15: mergeable=UNKNOWN passes Gate 0 (eventual-consistency lag —
+# real conflict will surface at gh pr merge time, not here).
+TMP_FIX="$(mktemp)"
+jq '. + {mergeable: "UNKNOWN"}' "$FIX/coverage-complete.json" > "$TMP_FIX"
+"$MERGE" --from-file "$TMP_FIX" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "mergeable-UNKNOWN: exit 0" 0 "$rc"
+rm -f "$TMP_FIX"
+
+# Test 16: mergeable absent (older fixture) → treated as UNKNOWN → exit 0
+# (regression-lock — adding the field cannot break old fixtures).
+"$MERGE" --from-file "$FIX/coverage-complete.json" --dry-run >/dev/null 2>&1 && rc=0 || rc=$?
+assert_exit_code "mergeable-absent: exit 0 (backcompat)" 0 "$rc"
+
 test_summary

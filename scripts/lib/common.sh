@@ -184,7 +184,7 @@ load_pr_view() {
     PR_VIEW_SOURCE="file"
   elif [[ -n "$pr" ]]; then
     PR_VIEW_JSON="$(gh pr view "$pr" --json \
-      number,title,body,headRefName,headRefOid,baseRefName,comments,commits,labels,files,statusCheckRollup,reviewDecision,reviews,state,isDraft 2>&1)" \
+      number,title,body,headRefName,headRefOid,baseRefName,comments,commits,labels,files,statusCheckRollup,reviewDecision,reviews,state,isDraft,mergeable 2>&1)" \
       || { log_error "gh pr view failed: $PR_VIEW_JSON"; return 69; }
     PR_VIEW_SOURCE="gh"
 

@@ -178,4 +178,47 @@ assert_eq "multi-reviewer: superseded CR + stale /lgtm → wait-lgtm-fresh" \
   "wait-lgtm-fresh" "$(run_classify "$TMP")"
 rm -f "$TMP"
 
+# Test 20: mergeable=CONFLICTING + CI green + valid LGTM → merge-conflict
+# (overrides ready-to-merge — the merge would fail without a rebase).
+TMP="$(mktemp)"
+jq '. + {mergeable:"CONFLICTING"}' "$FIX/lgtm-current.json" > "$TMP"
+assert_eq "mergeable=CONFLICTING + CI green + LGTM → merge-conflict" \
+  "merge-conflict" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 21: mergeable=CONFLICTING but CI failing → address-ci-fail wins
+# (CI fixes are usually a code change, which would rebase out the
+# conflict at the same time — the failure to surface first is fine).
+TMP="$(mktemp)"
+jq '. + {
+  mergeable:"CONFLICTING",
+  statusCheckRollup:[{"name":"lint","state":"COMPLETED","conclusion":"FAILURE"}]
+}' "$FIX/lgtm-current.json" > "$TMP"
+assert_eq "mergeable=CONFLICTING + CI failing → address-ci-fail (ci wins)" \
+  "address-ci-fail" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 22: mergeable=UNKNOWN → proceeds to LGTM-based state
+# (no false-positive merge-conflict on eventual-consistency lag).
+TMP="$(mktemp)"
+jq '. + {mergeable:"UNKNOWN"}' "$FIX/lgtm-current.json" > "$TMP"
+assert_eq "mergeable=UNKNOWN + CI green + LGTM → ready-to-merge" \
+  "ready-to-merge" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 23: mergeable missing entirely → defaults to UNKNOWN (no field) → proceeds
+TMP="$(mktemp)"
+jq 'del(.mergeable)' "$FIX/lgtm-current.json" > "$TMP"
+assert_eq "mergeable absent → ready-to-merge (unchanged)" \
+  "ready-to-merge" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
+# Test 24: mergeable=CONFLICTING but no LGTM → still merge-conflict
+# (conflicts block more than LGTM does, so report the bigger problem).
+TMP="$(mktemp)"
+jq '. + {mergeable:"CONFLICTING"}' "$FIX/no-lgtm.json" > "$TMP"
+assert_eq "mergeable=CONFLICTING + no LGTM → merge-conflict" \
+  "merge-conflict" "$(run_classify "$TMP")"
+rm -f "$TMP"
+
 test_summary
