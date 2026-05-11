@@ -55,6 +55,33 @@ applied without modifying the PR.
 
 Tests: `tests/test_label_risk.sh`.
 
+### `coding-flows-classify-pr-reviewer`
+
+```
+coding-flows-classify-pr-reviewer <PR>
+coding-flows-classify-pr-reviewer --from-file <pr-view-json>
+```
+
+Reviewer-side state machine for one PR. Emits `PR_REVIEWER_STATE=<state>`:
+
+| State | Meaning |
+|-------|---------|
+| `needs-review`       | No LGTM yet OR head SHA changed since last LGTM |
+| `needs-resign`       | LGTM bound to head but Gate 4 (coverage) fails |
+| `needs-second-lgtm`  | High-risk PR with one valid LGTM at head |
+| `idle-merge-ready`   | All gates pass; Coder owns the merge step |
+| `idle-coder-blocked` | A Coder-side gate fails (the `REASON=` field names which) |
+
+Internally runs `check-lgtm` and `coding-flows-merge --dry-run`,
+mapping exit codes to actionable Reviewer states.
+
+**Use this — do not classify by "head SHA unchanged since my last
+review"**. That heuristic misses Gate 4 failures where the marker
+itself is wrong (e.g. prose values in `risks-reviewed=`), leaving the
+PR stuck in perpetual "idle" while Gate 4 silently blocks merge.
+
+Tests: `tests/test_classify_pr_reviewer.sh`.
+
 ### `coding-flows-verify-risks`
 
 ```

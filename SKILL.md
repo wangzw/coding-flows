@@ -207,6 +207,7 @@ that takes JSON via stdin or arg (so tests can run with fixtures).
 | `coding-flows-check-lgtm`            | Parse `/lgtm` markers; confirm head-binding |
 | `coding-flows-verify-lgtm-coverage`  | Demand `acs=`/`invariants=`/`risks-reviewed=` claims cover Coder's declarations |
 | `coding-flows-classify-pr`           | Coder Phase A: canonical PR state (`address-changes` / `ready-to-merge` / `wait-*`) — use this instead of inspecting `reviewDecision` |
+| `coding-flows-classify-pr-reviewer`  | Reviewer Phase B: maps full merge --dry-run state to `needs-review` / `needs-resign` / `needs-second-lgtm` / `idle-*` |
 | `coding-flows-verify-test-plan`      | Gate 11: every `- [ ]` in `## Test plan` is checked or removed |
 | `coding-flows-show-coverage`         | Emit exact `acs=`/`invariants=`/`risks-reviewed=` values for the Reviewer's LGTM marker |
 | `coding-flows-revoke-lgtm`           | Reviewer: post a top-level comment with revoke marker (works on self-PRs; supersedes prior `/lgtm` via `check-lgtm`) |

@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# coding-flows-classify-pr-reviewer <PR>
+# coding-flows-classify-pr-reviewer --from-file <pr-view-json>
+#
+# Reviewer-side state machine for one PR. Emits PR_REVIEWER_STATE=<state>:
+#
+#   needs-review       — no LGTM yet, OR head SHA changed since last LGTM
+#                        (full Phase B0/C re-review required)
+#   needs-resign       — LGTM bound to current head but Gate 4 (coverage)
+#                        fails — the existing /lgtm marker doesn't cover
+#                        what the Coder declared. Fix the marker
+#                        (typically via revoke-lgtm + fresh /lgtm with
+#                        canonical values from `coding-flows-show-coverage`).
+#   needs-second-lgtm  — high-risk PR labeled `high-risk:*` with only one
+#                        valid LGTM at current head. Dispatch reviewer-2.
+#   idle-merge-ready   — every gate passes, the Coder owns the merge step.
+#                        Reviewer has nothing to do.
+#   idle-coder-blocked — some Coder-side gate fails (CI, AC mapping, risks,
+#                        scope envelope, test plan, threads, ...). Reviewer
+#                        can't fix from their side; wait for Coder to act.
+#
+# Why this exists: the prior Reviewer-cycle Phase B check was "head SHA
+# unchanged since my last review → idle". That's wrong: an LGTM with
+# wrong coverage markers (e.g. prose `risks-reviewed=` values instead
+# of enum categories) leaves the PR with Gate 4 silently blocking. The
+# Reviewer would keep reporting "idle" forever. This script runs the
+# actual merge gates (via coding-flows-merge --dry-run) and surfaces
+# the truth.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
+# shellcheck source=lib/check-lgtm.sh
+source "$SCRIPT_DIR/lib/check-lgtm.sh"
+
+# Set up a single tempfile for the run; clean up on any exit (trap fires
+# after `main` returns, so any `local`-scoped variable would be invisible).
+CLASSIFY_TMP="$(mktemp)"
+trap 'rm -f "$CLASSIFY_TMP"' EXIT
+
+main() {
+  load_pr_view "$@"
+
+  # Step 1: is there a current LGTM at all?
+  local lgtm_rc=0
+  check_lgtm "$PR_VIEW_JSON" >/dev/null 2>&1 || lgtm_rc=$?
+  case $lgtm_rc in
+    1)
+      printf 'PR_REVIEWER_STATE=needs-review\nREASON=no-lgtm-marker\n'
+      return 0
+      ;;
+    2)
+      printf 'PR_REVIEWER_STATE=needs-review\nREASON=head-changed-since-lgtm\n'
+      return 0
+      ;;
+  esac
+
+  # Step 2: LGTM is bound to current head. Run the full merge gate suite
+  # in dry-run mode to see which (if any) gate fails. Map exit code to
+  # actionable state. Write the JSON to a temp file because
+  # coding-flows-merge's --from-file wants a path.
+  local merge_rc=0
+  printf '%s' "$PR_VIEW_JSON" > "$CLASSIFY_TMP"
+  "$SCRIPT_DIR/coding-flows-merge" --from-file "$CLASSIFY_TMP" --dry-run >/dev/null 2>&1 || merge_rc=$?
+
+  case $merge_rc in
+    0)  printf 'PR_REVIEWER_STATE=idle-merge-ready\nREASON=all-gates-pass\n' ;;
+    13) printf 'PR_REVIEWER_STATE=needs-resign\nREASON=lgtm-coverage-incomplete\n' ;;
+    14) printf 'PR_REVIEWER_STATE=needs-review\nREASON=stale-lgtm\n' ;;
+    15) printf 'PR_REVIEWER_STATE=needs-review\nREASON=lgtm-missing-at-merge\n' ;;
+    18) printf 'PR_REVIEWER_STATE=needs-second-lgtm\nREASON=dual-lgtm-missing\n' ;;
+    10) printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=ci-failing\n' ;;
+    11) printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=linked-issue-missing\n' ;;
+    12) printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=ac-mapping-incomplete\n' ;;
+    16) printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=unresolved-threads\n' ;;
+    17) printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=merge-method-disallowed\n' ;;
+    19) printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=scope-envelope-violation\n' ;;
+    20) printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=risks-missing-or-malformed\n' ;;
+    21) printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=test-plan-incomplete\n' ;;
+    *)  printf 'PR_REVIEWER_STATE=idle-coder-blocked\nREASON=merge-exit-%d-unknown\n' "$merge_rc" ;;
+  esac
+}
+
+main "$@"

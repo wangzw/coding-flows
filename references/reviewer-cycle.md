@@ -49,13 +49,27 @@ Skip drafts (`isDraft: true`).
 
 ## Phase B — Decide what to do per PR
 
-```
-gh pr view <PR> --json reviews,comments,commits,statusCheckRollup,labels,body,headRefOid,baseRefName,files
-```
+**Do NOT classify by head-SHA-unchanged alone.** A common failure mode:
+the Reviewer concludes "head SHA matches my last LGTM → idle" while
+Gate 4 silently blocks merge because the LGTM marker's
+`acs=`/`invariants=`/`risks-reviewed=` claims don't actually cover what
+the Coder declared. The PR sits skipped forever in cycle summaries.
 
-- If you've already left a review (or LGTM) **and** there are no new commits
-  since (`headRefOid` unchanged) → idle on this PR. Do not re-post anything.
-- If new commits exist, or you've never reviewed it → proceed to Phase B0.
+Run `coding-flows-classify-pr-reviewer <PR>` — it executes the full
+merge gate suite in dry-run mode and maps the result to a Reviewer-side
+action:
+
+| `PR_REVIEWER_STATE` | What to do |
+|--------------------|------------|
+| `needs-review`      | No LGTM yet, or head SHA changed since LGTM. Proceed to Phase B0 (build review plan + audit diff). |
+| `needs-resign`      | LGTM bound to head but Gate 4 (coverage) fails — your marker's `acs=`/`invariants=`/`risks-reviewed=` doesn't cover the Coder's declarations. Run `coding-flows-show-coverage <PR>` for canonical values, then either `coding-flows-revoke-lgtm` and post a fresh `/lgtm`, or just post a corrected `/lgtm` (claim sets union). **No diff re-review required** — the diff is unchanged; only the marker is wrong. |
+| `needs-second-lgtm` | High-risk PR (`high-risk:*` label) with one valid LGTM. If you are reviewer-2, run Phase B0. |
+| `idle-merge-ready`  | Every gate passes. Coder owns the merge step. Truly skip. |
+| `idle-coder-blocked`| A Coder-side gate is failing (CI, AC mapping, Risks, scope, test plan, threads, ...). The reason is in the script's `REASON=` output. You can't fix this from your side — truly skip. |
+
+For the underlying gh data, the script does its own `gh pr view`. You
+don't need to fetch separately for classification — but you will need
+the full PR view + diff for Phase B0 work.
 
 ## Phase B0 — Build the local review plan (no PR posting)
 
