@@ -239,6 +239,10 @@ Print a one-screen summary the wrapping scheduler can read at a glance:
 ```
 coding-flows cycle  role=<coder|reviewer>  repo=<owner/name>  ts=<ISO8601>
 
+Open work: PRs=<count>, issues=<count>   ← Coder cycle: both Phase A queries
+                                            (gh pr list / gh issue list);
+                                            Reviewer cycle: PRs only.
+
 Processed:
   - issue #N: <one-line action>
   - PR    #M: <one-line action>
@@ -253,6 +257,22 @@ Needs human:
   - issue #J  reason=ambiguous-issue       notified=label+marker
   - PR    #L  reason=repeated-ci-failure   notified=already-labeled
 ```
+
+### Full coverage is mandatory
+
+For a **Coder cycle**, every PR returned by `gh pr list --assignee <me>
+--state open` AND every issue returned by `gh issue list --assignee
+<me> --state open` MUST appear in exactly one of `Processed:`,
+`Skipped:`, or `Needs human:`. The `Open work:` counts let a reader
+verify this at a glance: if `issues=6` and the body has zero `issue
+#…` rows, the cycle was buggy (Stage 2 was skipped, or its results
+were dropped from the summary). Observed failure mode: the Coder
+processed only PRs for many consecutive cycles while issues #266,
+#268, #276–#279 went untouched — because the output had no slot to
+make the omission visible.
+
+For a **Reviewer cycle**, the same rule applies to PRs only — issues
+are out of scope. `Open work:` therefore omits the `issues=` segment.
 
 ### Skipped reasons are scoped to item type — do not mix
 

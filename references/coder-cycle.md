@@ -73,12 +73,27 @@ themselves can be issued in any order (or in parallel) — what matters
 is that no issue is *processed* until every PR has either been
 processed or is in a waiting state.
 
+**Both queries are mandatory, every cycle.** Run both even if Stage 1
+ends up with nothing actionable, and run both even if you remember the
+issue list from last cycle. Skipping `gh issue list` causes issues to
+go unprocessed for many consecutive cycles ("Coder only does PRs"
+failure mode observed in transcripts — issues #266, #268, #276–#279
+sat untouched for 15+ cycles).
+
 ```
 gh pr list --assignee <acting_user> --state open \
   --json number,title,headRefName,headRefOid,labels,reviewDecision,statusCheckRollup,isDraft
 gh issue list --assignee <acting_user> --state open \
   --json number,title,labels,body,author,url
 ```
+
+The cycle summary at the end MUST account for **every** PR and **every**
+issue returned by these queries — each one appears in exactly one of
+`Processed:`, `Skipped:`, or `Needs human:`. If you wrote a cycle
+summary with no issue rows at all and `gh issue list` returned ≥1 open
+issue assigned to you, that's a bug: you either skipped Stage 2 or
+failed to report it. See SKILL.md § "Output protocol" for the exact
+output rules.
 
 For each PR, derive a **state** that determines the Coder's next action.
 **Run `coding-flows-classify-pr <PR>` to get the state — do NOT classify
