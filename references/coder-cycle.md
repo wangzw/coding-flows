@@ -29,13 +29,21 @@ config and identity resolution work from either via `find_repo_config` +
 
 ## Phase A — Enumerate and classify work
 
+**PRs are enumerated first**, then issues. The cycle then processes them
+in two strict stages — see the priority table below. Stage 2 (issues)
+does not begin until every Stage-1 (PR) item has either been processed
+or is in a waiting state.
+
 One batched query each:
 
 ```
-gh issue list --assignee <acting_user> --state open \
-  --json number,title,labels,body,author,url
+# Stage 1 input — query PRs first
 gh pr list --assignee <acting_user> --state open \
   --json number,title,headRefName,headRefOid,labels,reviewDecision,statusCheckRollup,isDraft
+
+# Stage 2 input — query issues only after the PR list is in hand
+gh issue list --assignee <acting_user> --state open \
+  --json number,title,labels,body,author,url
 ```
 
 For each PR, derive a **state** that determines the Coder's next action:
@@ -57,19 +65,42 @@ For each issue, derive:
 | `start` | Issue clear, no PR yet | Phase A1 → B → C → D |
 | `wait-author` | Already asked clarification; no human response yet | **skip** |
 
-### Priority (within actionable states)
+### Priority — strict two-stage ordering
 
-Process actionable items in this order — older items break ties within
-the same state:
+**Stage 1 — process ALL actionable PRs first.** Older items break ties
+within the same state.
 
-1. `address-changes` — reviewers waiting on me
-2. `address-ci-fail` — my own failed CI
-3. `ready-to-merge` — close out completed work
-4. `start` (new issue) — pull in fresh work
-5. `clarify` (ambiguous issue) — escalate
+| Sub-priority | State | Why |
+|--------------|-------|-----|
+| 1 | `address-changes` | Reviewer is blocked on me; addressing review comments is the highest-leverage action because it unblocks an external dependency. |
+| 2 | `address-ci-fail` | My own CI is broken and the PR cannot make progress until I fix it. |
+| 3 | `ready-to-merge` | All gates green; merge so the worktree and plan cache can be reclaimed and the Reviewer's attention moves on. |
 
-This favors **finishing in-flight work** over starting new work. A backlog
-of half-finished PRs is worse than a backlog of un-started issues.
+**Stage 2 — only after Stage 1 is exhausted, touch issues.**
+
+| Sub-priority | State | Why |
+|--------------|-------|-----|
+| 4 | `start` | Open a new worktree, draft a plan, push the first PR. |
+| 5 | `clarify` | Author hasn't been pinged yet (or has responded); post or refresh the clarification thread. |
+
+**Hard rule**: Stage 2 only begins when every Stage-1 item has been
+processed or is in a waiting state (`wait-ci` / `wait-review` /
+`wait-lgtm-fresh`). A cycle never picks up a new issue while a PR could
+still be fixed, replied to, or merged.
+
+Rationale:
+
+- **PR comments are the priority within PR work.** A reviewer waiting on
+  the Coder is the single most expensive idle state in the loop —
+  unblocking them earns the most progress per unit of cycle time.
+- **PRs decay if abandoned**: stale LGTMs invalidate, CI states age out,
+  reviewer context evaporates. New issues don't decay.
+- **Resource isolation**: per-issue worktrees mean starting a new issue
+  consumes disk + branch slots. Better to free those up by finishing
+  in-flight PRs first.
+
+If the scheduler fires the next cycle 5–10 minutes later, fresh issues
+will be picked up then — no permanent starvation.
 
 ## Rotation points (when an item exits this cycle)
 

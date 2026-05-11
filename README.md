@@ -108,19 +108,33 @@ markers in normal review/comment surfaces.
 ### Coder cycle
 
 Per-issue **git worktree** isolation. Each cycle invocation enumerates
-every assigned issue and PR, classifies them by state, and processes
-actionable items in priority order. Detailed flow:
+every assigned PR and issue, classifies them by state, and processes
+actionable items in a **strict two-stage order — PRs first, then
+issues**. Detailed flow:
 [`references/coder-cycle.md`](references/coder-cycle.md).
 
 ```
-Phase A   Enumerate + classify         (one batched query)
-Phase A1  Feasibility + plan bootstrap (per issue, gated by rubric)
-Phase A2  Open worktree + init plan
-Phase B   Implement (update plan as you go)
-Phase C   Local lint/test/build
-Phase D   Validate → render → push     (PR body comes from rendered plan)
-Phase E   Address review/CI feedback
-Phase F   coding-flows-merge           (gates + worktree/cache cleanup)
+Phase A   Enumerate + classify   (PRs first, then issues)
+            │
+Stage 1 ──► Process actionable PRs in priority order:
+            1. address-changes   (Reviewer marked CHANGES_REQUESTED)
+            2. address-ci-fail   (own CI broke; push fix)
+            3. ready-to-merge    (coding-flows-merge → gates + cleanup)
+            │
+            │  (rotate to next PR when this one hands off to CI/Reviewer)
+            ▼
+Stage 2 ──► Only after every PR is processed or in a waiting state:
+            4. start             (new issue → worktree + plan + PR)
+            5. clarify           (ambiguous issue → post question)
+
+Per-item phases (Stage-1 PRs use E/F; Stage-2 issues use A1–D):
+  Phase A1  Feasibility + plan bootstrap (per issue, gated by rubric)
+  Phase A2  Open worktree + init plan
+  Phase B   Implement (update plan as you go)
+  Phase C   Local lint/test/build
+  Phase D   Validate → render → push     (PR body comes from rendered plan)
+  Phase E   Address review/CI feedback
+  Phase F   coding-flows-merge           (gates + worktree/cache cleanup)
 ```
 
 ### Reviewer cycle

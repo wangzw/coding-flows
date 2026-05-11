@@ -68,11 +68,14 @@ stay required — those are core invariants).
 - **Coder** — see **[references/coder-cycle.md](references/coder-cycle.md)**.
   Per-issue **worktree** isolation — worktrees default to siblings of the
   main checkout at `<parent-of-main-repo>/<branch-slug>/`; see
-  [references/worktrees.md](references/worktrees.md). Within one cycle
-  the Coder is serial (one build/test at a time) but multi-task: when an item
-  hands off to CI or Reviewer, the cycle rotates to the next actionable item
-  rather than blocking. Iteration frequency comes from the wrapping scheduler
-  (`slock reminder` / `/loop`), not from this skill.
+  [references/worktrees.md](references/worktrees.md). Within one cycle the
+  Coder is serial (one build/test at a time) but multi-task across items,
+  with **strict two-stage ordering**: process every actionable PR
+  (address review comments → fix CI failures → merge) before touching any
+  issue. When an item hands off to CI or Reviewer, the cycle rotates to
+  the next actionable item rather than blocking. Iteration frequency comes
+  from the wrapping scheduler (`slock reminder` / `/loop`), not from this
+  skill.
 - **Reviewer** — see **[references/reviewer-cycle.md](references/reviewer-cycle.md)**.
   Default-deny adversarial stance. Builds a **local** review plan (under
   `~/.cache/coding-flows/<owner>/<repo>/pr-<N>/`); the plan never touches the PR.
