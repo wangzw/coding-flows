@@ -15,7 +15,15 @@ worktree_branch_to_slug() {
 # worktree_root [<config-path>] — emit the directory under which coding-flows
 # manages worktrees. Resolution order:
 #   1. .coding-flows.json `worktree.root` (absolute or relative-to-repo).
-#   2. Default: $(repo_state_dir)/worktrees
+#   2. CODING_FLOWS_WORKTREE_ROOT env var (test/CI override; absolute).
+#   3. Default: <parent-of-main-repo> — i.e. worktrees become siblings of
+#      the main checkout, sharing the project's parent directory.
+#      e.g. main at /home/u/workspace/castworks/main
+#           → worktrees at /home/u/workspace/castworks/<branch-slug>
+#
+# Plans (Coder/Reviewer) still live under $(repo_state_dir) — i.e.
+# ~/.cache/coding-flows/... — because they're internal agent state. Only
+# worktrees, which the user `cd`s into, default to the sibling location.
 worktree_root() {
   local root
   root="$(read_config '.worktree.root' '')"
@@ -28,6 +36,19 @@ worktree_root() {
     printf '%s' "$root"
     return 0
   fi
+  if [[ -n "${CODING_FLOWS_WORKTREE_ROOT:-}" ]]; then
+    printf '%s' "$CODING_FLOWS_WORKTREE_ROOT"
+    return 0
+  fi
+  # Default: parent directory of the main repo. Worktrees become siblings
+  # of the main checkout.
+  local repo_root
+  if repo_root="$(_main_repo_root 2>/dev/null)"; then
+    dirname "$repo_root"
+    return 0
+  fi
+  # No main-repo context — fall back to cache (shouldn't normally happen,
+  # worktree commands require a git repo).
   printf '%s/worktrees' "$(repo_state_dir)"
 }
 

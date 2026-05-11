@@ -66,8 +66,9 @@ stay required — those are core invariants).
 ## Cycles
 
 - **Coder** — see **[references/coder-cycle.md](references/coder-cycle.md)**.
-  Per-issue **worktree** isolation (`~/.cache/coding-flows/<owner>/<repo>/worktrees/`);
-  see [references/worktrees.md](references/worktrees.md). Within one cycle
+  Per-issue **worktree** isolation — worktrees default to siblings of the
+  main checkout at `<parent-of-main-repo>/<branch-slug>/`; see
+  [references/worktrees.md](references/worktrees.md). Within one cycle
   the Coder is serial (one build/test at a time) but multi-task: when an item
   hands off to CI or Reviewer, the cycle rotates to the next actionable item
   rather than blocking. Iteration frequency comes from the wrapping scheduler

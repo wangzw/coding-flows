@@ -57,12 +57,17 @@ export CODING_FLOWS_REPO_NWO="acme/widget"
 in_repo() ( cd "$REPO" && "$@" )
 in_path() ( cd "$1" && shift && "$@" )
 
-# Path resolution honors cache root + per-repo namespacing
+# Default path resolution: parent of the main repo — worktrees become
+# siblings of the main checkout.
 got="$(in_repo worktree_path_for_branch "fix/1-foo")"
-expected="$CACHE/acme/widget/worktrees/fix-1-foo"
-assert_eq "path: cache-rooted" "$expected" "$got"
+expected="$TMP_PARENT/fix-1-foo"
+assert_eq "path: parent-rooted default" "$expected" "$got"
 
-# Path resolution honors .coding-flows.json `worktree.root` (relative to repo)
+# CODING_FLOWS_WORKTREE_ROOT env override
+got="$( CODING_FLOWS_WORKTREE_ROOT="$TMP_PARENT/custom-wt" in_repo worktree_path_for_branch "chore/2-y" )"
+assert_eq "path: env override" "$TMP_PARENT/custom-wt/chore-2-y" "$got"
+
+# .coding-flows.json `worktree.root` (relative to repo) wins over env+default
 echo '{"worktree":{"root":".wt"}}' > "$REPO/.coding-flows.json"
 got="$(in_repo worktree_path_for_branch "chore/9-x")"
 assert_eq "path: config-rooted relative" "$REPO/.wt/chore-9-x" "$got"
@@ -71,7 +76,7 @@ rm -f "$REPO/.coding-flows.json"
 # --- worktree_create -----------------------------------------------------
 got="$(in_repo worktree_create "fix/100-bar" "origin/main" 2>/dev/null)" && rc=0 || rc=$?
 assert_exit_code "create: ok" 0 "$rc"
-expected="$CACHE/acme/widget/worktrees/fix-100-bar"
+expected="$TMP_PARENT/fix-100-bar"
 assert_eq         "create: emits path" "$expected" "$got"
 [[ -d "$got" ]] && rc=0 || rc=1
 assert_exit_code  "create: dir exists" 0 "$rc"
@@ -130,7 +135,7 @@ assert_exit_code  "remove: idempotent" 0 "$rc"
 
 # --- _main_repo_root from a worktree -------------------------------------
 in_repo worktree_create "feat/200-x" "origin/main" >/dev/null 2>&1
-new_wt="$CACHE/acme/widget/worktrees/feat-200-x"
+new_wt="$TMP_PARENT/feat-200-x"
 [[ -d "$new_wt" ]] && rc=0 || rc=1
 assert_exit_code  "create feat/200-x: dir exists" 0 "$rc"
 

@@ -145,9 +145,9 @@ cd "$WT"
 
 The branch name is `<conventional-commits-type>/<issue-number>-<slug>` —
 type matches the issue's nature (`feat`, `fix`, `chore`, `docs`, ...), slug
-≤ 5 lowercase hyphenated words. The worktree lives under
-`~/.cache/coding-flows/<owner>/<repo>/worktrees/<slug>` (override via
-`.coding-flows.json` `worktree.root`).
+≤ 5 lowercase hyphenated words. The worktree lives at
+`<parent-of-main-repo>/<branch-slug>` — i.e. as a sibling of the main
+checkout (override via `.coding-flows.json` `worktree.root`).
 
 **Per-worktree pre-flight**: now is when `git status` matters. If this
 worktree has uncommitted changes from a previous interrupted cycle, the

@@ -19,8 +19,11 @@ defaults documented below.
 
   // Per-issue worktree location. Each branch gets its own worktree at
   // <root>/<branch-slug> (branch-slug = branch name with / replaced by -).
-  // Default: $(repo_state_dir)/worktrees, which expands to
-  //   ~/.cache/coding-flows/<owner>/<repo>/worktrees
+  // Default: dirname(main-repo-root) — worktrees become siblings of the
+  //   main checkout. E.g. main at ~/workspace/castworks/main →
+  //   worktrees at ~/workspace/castworks/<slug>/.
+  // CODING_FLOWS_WORKTREE_ROOT env var overrides this default (for tests
+  //   and CI). The config below overrides everything when set.
   "worktree": {
     "root": "../my-worktrees"      // relative paths anchor to the main repo
                                    // root, not cwd. Absolute paths also OK.

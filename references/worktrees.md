@@ -21,23 +21,50 @@ single cycle invocation blocks on either. See
 
 ## Where they live
 
-Default: `~/.cache/coding-flows/<owner>/<repo>/worktrees/<branch-slug>/`
+Default: **siblings of the main checkout**, sharing the project parent
+directory:
 
-- Per-cache root (`$CODING_FLOWS_CACHE_DIR`, default `~/.cache/coding-flows`).
-- Per-repo namespace (`<owner>/<repo>` from `gh repo view --json nameWithOwner`).
-- Per-branch slug (`<type>/<N>-<slug>` → `<type>-<N>-<slug>`).
+```
+~/workspace/castworks/
+├── main/            ← main checkout (the cwd of the Coder cycle)
+├── fix-240-empty-packages/   ← worktree
+├── feat-301-vault-policies/  ← worktree
+└── chore-555-bump-deps/      ← worktree
+```
+
+The default worktree root is `dirname(main-repo-root)`, so if the main
+checkout is at `~/workspace/castworks/main`, worktrees land at
+`~/workspace/castworks/<branch-slug>/`.
+
+This layout assumes you put the main checkout in its own subdirectory
+under a project parent (e.g. `castworks/main/`). If your main checkout
+is at `~/workspace/castworks/` directly, the default puts worktrees as
+siblings of `castworks/` in `~/workspace/`, which is workable but
+noisier — consider restructuring to the `castworks/main` pattern or
+overriding via config (see below).
+
+Plans (Coder + Reviewer) still live under
+`~/.cache/coding-flows/<owner>/<repo>/` — those are internal agent
+state, not something the user `cd`s into.
+
+Resolution order for worktree root:
+
+1. `.coding-flows.json` `worktree.root` (absolute or relative-to-repo).
+2. `$CODING_FLOWS_WORKTREE_ROOT` env var (test/CI override; absolute).
+3. Default: `dirname(main-repo-root)`.
 
 Override via `.coding-flows.json`:
 
 ```json
 "worktree": {
-  "root": "../my-worktrees"     // relative to repo root, OR
-  "root": "/var/lib/coding-flows"    // absolute
+  "root": "../my-worktrees"        // relative to main repo root, OR
+  "root": "/var/lib/coding-flows"  // absolute
 }
 ```
 
-Relative paths are anchored to the **main repo root**, not cwd. Worktrees
-must live outside the main repo's working tree (git refuses to nest them).
+Relative paths are anchored to the main repo root, not cwd. Worktrees
+must live outside the main repo's working tree (git refuses to nest
+them).
 
 ## Lifecycle scripts
 
