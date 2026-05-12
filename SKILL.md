@@ -322,9 +322,12 @@ classifier for **every** PR in the input list, every cycle.
 
 Issue-side `Skipped:` reasons — exact definitions:
 
-- `wait-author` — clarification was already asked, the `needs-human`
+- `wait-author` — **clarification asked** of a human, `needs-human`
   label is on the issue, no new author response yet. The Coder
-  re-checks on each cycle for a new author comment.
+  re-checks each cycle for a new author comment. This reason is
+  ONLY for genuine clarification needs — not for "work is done,
+  waiting for someone to close it." See the "Coder closes its own
+  completed issues" rule below.
 - `blocked-by-dep` — issue concretely depends on another issue / PR
   that has not yet merged or been resolved. Name the dependency in
   the row (e.g. `blocked-by-dep #279 (allow-list pruning)`). NOT for
@@ -343,6 +346,31 @@ Issue-side `Skipped:` reasons — exact definitions:
 A Reviewer cycle emitting `wait-author` for a PR is a bug: the
 Reviewer must call `coding-flows-classify-pr-reviewer` and use its
 enum.
+
+### Coder closes its own completed issues
+
+When every AC of an issue is covered by merged PRs and there is no
+further Coder work, the Coder **closes the issue directly**:
+
+```
+gh issue close <N> --comment "Closed: all named ACs covered per the
+coverage summary above. <one-line cross-link to the merging PRs>."
+```
+
+The Coder does NOT skip the issue with `wait-author` "awaiting human
+close." Humans are only involved when a real question needs human
+judgment (spec decision, research, ambiguity). A done issue is the
+Coder's responsibility to close.
+
+Auto-close via a PR's `Closes #N` body line still handles the common
+case: one PR fully closes one issue. The `gh issue close` step is for
+umbrella issues that span multiple PRs — when all named sub-ACs land,
+the umbrella stays open unless the Coder closes it.
+
+Observed anti-pattern: issues #288, #289, #292, #295 had every named
+AC closed by merged PRs and a Coder-posted coverage summary, but were
+left OPEN with `wait-author` in cycle outputs. The four were closed
+manually after they sat for hours. Don't repeat this.
 
 **Anti-pattern — do not invent reasons to skip Stage 2.** Observed in
 a transcript: Coder finished PR work (PR now in `wait-ci`), then
